@@ -25,14 +25,14 @@ def hosts_in_code(skill: str) -> set[str]:
     """URL hosts written in the skill's source, ignoring comment lines."""
     hosts = set()
     for path in (ROOT / "skills" / skill).glob("*.py"):
-        for line in path.read_text().splitlines():
+        for line in path.read_text(encoding="utf-8").splitlines():
             if not line.lstrip().startswith("#"):
                 hosts.update(HOST.findall(line))
     return hosts
 
 
 def doc_row(skill: str) -> str:
-    rows = [ln for ln in DOC.read_text().splitlines() if ln.startswith(f"| `{skill}` |")]
+    rows = [ln for ln in DOC.read_text(encoding="utf-8").splitlines() if ln.startswith(f"| `{skill}` |")]
     assert len(rows) == 1, f"expected one data-handling row for {skill}, found {len(rows)}"
     return rows[0]
 
@@ -47,7 +47,7 @@ def test_every_contacted_host_is_in_the_skills_row(skill):
 
 
 def test_every_contacted_host_is_in_the_allowlisting_table():
-    text = DOC.read_text().split("### Allowlisting for the public-archive skills", 1)[1]
+    text = DOC.read_text(encoding="utf-8").split("### Allowlisting for the public-archive skills", 1)[1]
     table = {m for m in re.findall(r"^\| `([a-z0-9.-]+)` \|", text, re.M)}
     wanted = set().union(*(hosts_in_code(s) for s in SKILLS))
     assert not sorted(wanted - table), f"allowlisting table omits {sorted(wanted - table)}"

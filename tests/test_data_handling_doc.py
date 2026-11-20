@@ -38,13 +38,13 @@ def skills_that_reach_the_network() -> set[str]:
                 continue
             if "tests" in path.parts or "node_modules" in path.parts:
                 continue
-            text = path.read_text(errors="ignore")
+            text = path.read_text(encoding="utf-8", errors="ignore")
             if CALL.search(text):
                 found.add(name)
                 break
         skill_md = skill_dir / "SKILL.md"
         if skill_md.exists():
-            match = re.match(r"^---\n(.*?)\n---", skill_md.read_text(errors="ignore"), re.S)
+            match = re.match(r"^---\n(.*?)\n---", skill_md.read_text(encoding="utf-8", errors="ignore"), re.S)
             try:
                 front = yaml.safe_load(match.group(1)) if match else {}
             except yaml.YAMLError:
@@ -58,7 +58,7 @@ def skills_that_reach_the_network() -> set[str]:
 
 
 def documented_skills() -> set[str]:
-    text = DOC.read_text()
+    text = DOC.read_text(encoding="utf-8")
     return set(re.findall(r"`([a-z0-9][a-z0-9-]*)`", text))
 
 
@@ -79,7 +79,7 @@ def test_every_networked_skill_is_documented():
 def documented_rows() -> set[str]:
     """Skill names in the first cell of every table row (several rows list more than one)."""
     names: set[str] = set()
-    for line in DOC.read_text().splitlines():
+    for line in DOC.read_text(encoding="utf-8").splitlines():
         if line.startswith("| `"):
             first_cell = line.split("|")[1]
             names.update(re.findall(r"`([a-z0-9][a-z0-9-]*)`", first_cell))
@@ -98,7 +98,7 @@ def test_rows_cover_every_scanned_skill_or_the_checked_list():
     lists as checked and clean, which must still be named."""
     networked = skills_that_reach_the_network()
     rows = documented_rows()
-    text = DOC.read_text()
+    text = DOC.read_text(encoding="utf-8")
     checked_section = text.split("## Checked and found to make no outbound call", 1)[-1]
     checked = set(re.findall(r"`([a-z0-9][a-z0-9-]*)`", checked_section.split("## ", 1)[0]))
     unaccounted = sorted(networked - rows - checked)
@@ -116,8 +116,8 @@ def test_core_egress_paths_are_documented():
     """The scanner above only walks skills/, so it structurally cannot see an
     egress path added to the clawbio package itself. This pins the one that
     exists: audit's opt-in OTLP export."""
-    audit = (ROOT / "clawbio" / "common" / "audit.py").read_text()
-    doc = DOC.read_text()
+    audit = (ROOT / "clawbio" / "common" / "audit.py").read_text(encoding="utf-8")
+    doc = DOC.read_text(encoding="utf-8")
     assert "OTLPSpanExporter" in audit, "audit.py no longer exports spans; drop this test"
     assert "CLAWBIO_OTLP_ENDPOINT" in doc, (
         "clawbio/common/audit.py can export audit spans over the network, but "
@@ -127,4 +127,4 @@ def test_core_egress_paths_are_documented():
 
 def test_audit_log_override_is_documented():
     """CLAWBIO_AUDIT_LOG redirects a file that can carry sample paths."""
-    assert "CLAWBIO_AUDIT_LOG" in DOC.read_text()
+    assert "CLAWBIO_AUDIT_LOG" in DOC.read_text(encoding="utf-8")

@@ -69,7 +69,7 @@ def _wheel_excluded_skills() -> set[str]:
     hatch_build imports hatchling, a build-time dependency that need not be
     installed wherever the tests run."""
     import ast
-    tree = ast.parse((ROOT / "hatch_build.py").read_text())
+    tree = ast.parse((ROOT / "hatch_build.py").read_text(encoding="utf-8"))
     values = [
         ast.literal_eval(node.value)
         for node in ast.walk(tree)
@@ -81,7 +81,7 @@ def _wheel_excluded_skills() -> set[str]:
 
 
 def _skills() -> list[dict]:
-    return json.loads(CATALOG.read_text())["skills"]
+    return json.loads(CATALOG.read_text(encoding="utf-8"))["skills"]
 
 
 def test_every_skill_declares_a_code_licence():

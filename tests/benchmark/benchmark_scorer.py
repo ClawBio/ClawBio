@@ -31,7 +31,7 @@ class BenchmarkScorer:
     """Score a set of pipeline-discovered genes against AD ground truth."""
 
     def __init__(self, ground_truth_path: Path = GROUND_TRUTH_PATH):
-        with open(ground_truth_path) as f:
+        with open(ground_truth_path, encoding="utf-8") as f:
             self.ground_truth = json.load(f)
 
         pos = self.ground_truth["positive_genes"]

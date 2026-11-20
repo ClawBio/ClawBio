@@ -35,7 +35,7 @@ REGIONS_DIR = CORPAS_DIR / "regions"
 
 def _load_manifest() -> dict:
     assert MANIFEST_PATH.exists(), f"manifest.json not found at {MANIFEST_PATH}"
-    return json.loads(MANIFEST_PATH.read_text())
+    return json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
 
 
 def _file_is_present(manifest: dict, section: str, filename: str) -> Path | None:
@@ -125,7 +125,7 @@ class TestCitation:
         except ImportError:
             pytest.skip("pyyaml not installed")
         path = CORPAS_DIR / "CITATION.cff"
-        data = yaml.safe_load(path.read_text())
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
         assert isinstance(data, dict)
 
     def test_citation_has_doi(self):
@@ -134,7 +134,7 @@ class TestCitation:
         except ImportError:
             pytest.skip("pyyaml not installed")
         path = CORPAS_DIR / "CITATION.cff"
-        data = yaml.safe_load(path.read_text())
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
         assert data.get("doi") == "10.5281/zenodo.19297389"
 
     def test_citation_has_all_versions_doi(self):
@@ -143,7 +143,7 @@ class TestCitation:
         except ImportError:
             pytest.skip("pyyaml not installed")
         path = CORPAS_DIR / "CITATION.cff"
-        data = yaml.safe_load(path.read_text())
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
         identifiers = data.get("identifiers", [])
         all_version_dois = [
             i["value"] for i in identifiers if i.get("type") == "doi"
@@ -160,13 +160,13 @@ class TestReadme:
 
     def test_readme_contains_doi(self):
         path = CORPAS_DIR / "README.md"
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         assert "10.5281/zenodo.19297389" in text
         assert "10.5281/zenodo.19285820" in text
 
     def test_readme_contains_research_caveat(self):
         path = CORPAS_DIR / "README.md"
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         assert "research and educational purposes only" in text
 
 
@@ -179,7 +179,7 @@ class TestRsidLists:
 
     def test_pgx_rsids_valid(self):
         path = REGIONS_DIR / "pgx_rsids.json"
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         rsids = data.get("rsids", [])
         assert len(rsids) >= 25, f"Expected >= 25 PGx rsIDs, got {len(rsids)}"
         for rsid in rsids:
@@ -191,7 +191,7 @@ class TestRsidLists:
 
     def test_nutrigx_rsids_valid(self):
         path = REGIONS_DIR / "nutrigx_rsids.json"
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         rsids = data.get("rsids", [])
         assert len(rsids) >= 25, f"Expected >= 25 NutriGx rsIDs, got {len(rsids)}"
         for rsid in rsids:
@@ -200,7 +200,7 @@ class TestRsidLists:
     def test_pgx_rsids_match_pharmgx_reporter(self):
         """Verify PGx rsIDs align with pharmgx-reporter skill."""
         pgx_path = REGIONS_DIR / "pgx_rsids.json"
-        data = json.loads(pgx_path.read_text())
+        data = json.loads(pgx_path.read_text(encoding="utf-8"))
         rsids = set(data["rsids"])
 
         # Import PGX_SNPS from pharmgx_reporter if available
@@ -278,7 +278,7 @@ class TestBaselines:
         path = _file_is_present(manifest, "baselines", "qc_summary.json")
         if path is None:
             pytest.skip("QC baselines not yet computed")
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         assert "genome_build" in data
         assert data["genome_build"] == "GRCh37"
 
@@ -287,7 +287,7 @@ class TestBaselines:
         path = _file_is_present(manifest, "baselines", "qc_summary.json")
         if path is None:
             pytest.skip("QC baselines not yet computed")
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         snp_stats = data.get("snp_stats", {})
         ts_tv = snp_stats.get("ts_tv_ratio")
         if ts_tv is None:
@@ -299,7 +299,7 @@ class TestBaselines:
         path = _file_is_present(manifest, "baselines", "qc_summary.json")
         if path is None:
             pytest.skip("QC baselines not yet computed")
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         snp_stats = data.get("snp_stats", {})
         het_hom = snp_stats.get("het_hom_ratio")
         if het_hom is None:
@@ -311,7 +311,7 @@ class TestBaselines:
         path = _file_is_present(manifest, "baselines", "qc_summary.json")
         if path is None:
             pytest.skip("QC baselines not yet computed")
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         sv_counts = data.get("sv_counts", {})
         if not sv_counts:
             pytest.skip("SV counts not in baselines")

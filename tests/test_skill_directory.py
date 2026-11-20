@@ -24,8 +24,8 @@ def test_directory_replacement():
 
 def test_every_skill_is_in_static_html():
     from html import escape
-    skills = json.loads((ROOT / 'skills/directory.json').read_text())['skills']
-    page = (ROOT / 'skills.html').read_text()
+    skills = json.loads((ROOT / 'skills/directory.json').read_text(encoding='utf-8'))['skills']
+    page = (ROOT / 'skills.html').read_text(encoding='utf-8')
     assert page.count('<article ') == len(skills)
     for skill in skills:
         assert 'id="' + escape(skill['slug'], quote=True) + '"' in page
@@ -58,6 +58,6 @@ def test_only_tags_are_visible():
             if tag == 'span':
                 self.in_tag = False
     parser = Tags()
-    parser.feed((ROOT / 'skills.html').read_text())
-    for skill in json.loads((ROOT / 'skills/directory.json').read_text())['skills']:
+    parser.feed((ROOT / 'skills.html').read_text(encoding='utf-8'))
+    for skill in json.loads((ROOT / 'skills/directory.json').read_text(encoding='utf-8'))['skills']:
         assert parser.tags[skill['slug']] == list(dict.fromkeys(skill['tags']))

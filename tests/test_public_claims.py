@@ -69,11 +69,11 @@ CLI_PATTERN = re.compile(r"(\d+) (?:with a deterministic CLI entry point|run det
 
 
 def _catalog() -> dict:
-    return json.loads(CATALOG.read_text())
+    return json.loads(CATALOG.read_text(encoding="utf-8"))
 
 
 def _package_version() -> str:
-    text = (ROOT / "clawbio" / "__init__.py").read_text()
+    text = (ROOT / "clawbio" / "__init__.py").read_text(encoding="utf-8")
     match = re.search(r'^__version__\s*=\s*"([^"]+)"', text, re.MULTILINE)
     assert match, "clawbio/__init__.py has no __version__"
     return match.group(1)
@@ -102,7 +102,7 @@ def _hand_typed_counts(text: str) -> list[str]:
 
 @pytest.mark.parametrize("relpath", COUNT_FILES)
 def test_no_hand_typed_counts(relpath: str):
-    text = (ROOT / relpath).read_text()
+    text = (ROOT / relpath).read_text(encoding="utf-8")
     found = _hand_typed_counts(text)
     assert not found, (
         f"{relpath} hand-types a count {found}. Counts live only in skills/catalog.json "
@@ -134,7 +134,7 @@ def test_count_free_wording_is_not_flagged():
 @pytest.mark.parametrize("relpath,pattern", sorted(VERSION_FILES.items()))
 def test_stated_release_matches_package_version(relpath: str, pattern: str):
     expected = _package_version()
-    text = (ROOT / relpath).read_text()
+    text = (ROOT / relpath).read_text(encoding="utf-8")
     found = re.findall(pattern, text, re.MULTILINE)
     assert found, f"{relpath} states no release version (pattern {pattern!r})"
     wrong = sorted(set(v for v in found if v != expected))
@@ -147,7 +147,7 @@ def test_no_primacy_claim_anywhere():
         rel = path.relative_to(ROOT).as_posix()
         if rel.startswith(PRIMACY_ALLOWLIST_PREFIXES):
             continue
-        for lineno, line in enumerate(path.read_text(errors="ignore").splitlines(), 1):
+        for lineno, line in enumerate(path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
             if PRIMACY.search(line):
                 hits.append(f"{rel}:{lineno}: {line.strip()[:100]}")
     assert not hits, "primacy claim found (the project does not evidence it):\n" + "\n".join(hits)
@@ -179,7 +179,7 @@ def _floor_problems(relpath: str, text: str, skill_count: int) -> list[str]:
 
 @pytest.mark.parametrize("relpath", FLOOR_FILES)
 def test_listing_states_a_true_skill_floor(relpath: str):
-    problems = _floor_problems(relpath, (ROOT / relpath).read_text(), _catalog()["skill_count"])
+    problems = _floor_problems(relpath, (ROOT / relpath).read_text(encoding="utf-8"), _catalog()["skill_count"])
     assert not problems, problems
 
 
