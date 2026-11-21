@@ -9,6 +9,8 @@ for a given article DOI or PubMed ID.
 from __future__ import annotations
 
 import argparse
+import base64
+import contextlib
 import gzip
 import hashlib
 import json
@@ -21,6 +23,20 @@ from typing import Optional
 from urllib.parse import urlparse
 
 import requests
+
+_SKILL_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = _SKILL_DIR.parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.report import DISCLAIMER, write_result_json  # noqa: E402
+from clawbio.common.reproducibility import (  # noqa: E402
+    ReproCommand,
+    ReproPath,
+    write_checksums,
+    write_environment_yml,
+    write_portable_commands_sh,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -39,6 +55,9 @@ SUPPORTED_EXTENSIONS = {
 }
 
 DEMO_ACCESSION = "GSE100866"  # CITE-seq CBMC dataset — has csv.gz supplementary files
+# GEO's responses for the demo (series page, file listing, smallest file), recorded
+# as {url: {status, body_b64}}, so the demo runs offline and gives the same result.
+DEMO_HTTP = _SKILL_DIR / "examples" / f"demo_{DEMO_ACCESSION}_http.json.gz"
 
 ENTREZ_BASE = "https://edata.ncbi.nlm.nih.gov/geo/query/acc.cgi"
 CROSSREF_BASE = "https://api.crossref.org/works"
@@ -385,6 +404,8 @@ def fetch_geo_files(accession: str) -> list[dict]:
                     "repository": "GEO",
                     "accession": accession,
                     "size_bytes": size_bytes,
+                    # Apache listings round sizes ("19K"), so this is not exact.
+                    "size_is_listed": True,
                     "data_type": infer_data_type(fname, desc),
                 })
             if files:
@@ -424,6 +445,14 @@ def _parse_size(size_str: str) -> Optional[int]:
         return int(size_str)
     except ValueError:
         return None
+
+
+def _size_label(f: dict) -> str:
+    """A file's size for reports, marked when it comes from a rounded directory listing."""
+    size_str = _fmt_size(f.get("size_bytes"))
+    if f.get("size_is_listed") and f.get("size_bytes") is not None:
+        return f"listed size {size_str}"
+    return size_str
 
 
 def _fmt_size(size_bytes: Optional[int]) -> str:
@@ -986,7 +1015,7 @@ def run(
         "",
     ]
     for f in downloaded:
-        size_str = _fmt_size(f.get("size_bytes"))
+        size_str = _size_label(f)
         report_lines.append(f"- ✅ `{f['filename']}` ({size_str}) — {f['repository']}")
     if skipped:
         report_lines += ["", f"## Files Skipped — type not requested ({len(skipped)})", ""]
@@ -1009,41 +1038,110 @@ def run(
 # Demo mode
 # ---------------------------------------------------------------------------
 
+@contextlib.contextmanager
+def _serve_recorded_http(fixture: Path):
+    """Answer requests.get from a recorded fixture; any other URL is an error."""
+    recorded = json.loads(gzip.open(fixture, "rt", encoding="utf-8").read())
+
+    def fake_get(url, *args, **kwargs):
+        if url not in recorded:
+            raise SystemExit(f"demo mode has no recorded response for {url}")
+        response = requests.Response()
+        response.status_code = recorded[url]["status"]
+        response._content = base64.b64decode(recorded[url]["body_b64"])
+        response._content_consumed = True
+        response.url = url
+        response.encoding = "utf-8"
+        return response
+
+    real_get = requests.get
+    requests.get = fake_get
+    try:
+        yield
+    finally:
+        requests.get = real_get
+
+
+def _local_path(dest: Path, output_dir: Path, unzip: bool) -> str:
+    """Where a downloaded file ends up, relative to the output directory."""
+    final = dest.with_suffix("") if unzip and dest.suffix == ".gz" else dest
+    return final.relative_to(output_dir).as_posix()
+
+
 def run_demo(output_dir: Path, unzip: bool = True) -> None:
-    print(f"🧬 Running demo with GEO accession {DEMO_ACCESSION}…")
+    """Fetch the smallest supplementary file of DEMO_ACCESSION from recorded GEO responses.
+
+    Offline and non-interactive, so it runs the same in CI as on a laptop.
+    """
+    print(f"🧬 Running demo with GEO accession {DEMO_ACCESSION} (recorded responses)…")
     output_dir.mkdir(parents=True, exist_ok=True)
-    files = fetch_geo_files(DEMO_ACCESSION)
-    if not files:
-        print("⚠️  Could not reach GEO FTP in demo mode. Check your internet connection.")
-        return
-
-    # Show the same file listing as the real flow
-    print_file_listing(files, title=f"\nFound {len(files)} file(s) in {DEMO_ACCESSION}:")
-
-    # Ask the user which files they want — same as the real flow
-    selected = prompt_and_select_files(files)
-    if not selected:
-        print("No files selected. Aborting.")
-        return
-
-    print(f"\n⬇️  Downloading {len(selected)} file(s) to {output_dir}/\n")
-    manifest_files = []
-    for f in selected:
-        dest = output_dir / f["accession"] / f["filename"]
-        print(f"  ⬇  {f['filename']}")
-        ok = download_file(f["url"], dest, unzip=unzip)
-        manifest_files.append({**f, "local_path": str(dest), "downloaded": ok})
-        if ok:
-            print(f"  ✅ {f['filename']}")
+    with _serve_recorded_http(DEMO_HTTP):
+        files = fetch_geo_files(DEMO_ACCESSION)
+        print_file_listing(files, title=f"\nFound {len(files)} file(s) in {DEMO_ACCESSION}:")
+        sized = [f for f in files if f.get("size_bytes")]
+        if not sized:
+            raise RuntimeError(
+                f"The recorded GEO listing for {DEMO_ACCESSION} has no file sizes, so the "
+                f"demo cannot pick the smallest file. Re-record {DEMO_HTTP.name}."
+            )
+        selected = [min(sized, key=lambda f: f["size_bytes"])]
+        print(f"\n⬇️  Demo downloads the smallest file to {output_dir}/\n")
+        manifest_files = []
+        for f in selected:
+            dest = output_dir / f["accession"] / f["filename"]
+            ok = download_file(f["url"], dest, unzip=unzip)
+            manifest_files.append({**f, "local_path": _local_path(dest, output_dir, unzip), "downloaded": ok})
+            if ok:
+                print(f"  ✅ {f['filename']}")
 
     manifest_path = output_dir / "manifest.json"
-    manifest_path.write_text(json.dumps({"demo": True, "accession": DEMO_ACCESSION, "files": manifest_files}, indent=2))
+    manifest_path.write_text(json.dumps(
+        {"demo": True, "accession": DEMO_ACCESSION, "files": manifest_files}, indent=2) + "\n")
+    downloaded = [f for f in manifest_files if f["downloaded"]]
+    report_lines = [
+        "# Article Data Fetcher — Demo Report",
+        "",
+        f"**Accession**: {DEMO_ACCESSION} (GEO, recorded responses)",
+        f"**Files listed**: {len(files)}",
+        f"**Files downloaded**: {len(downloaded)}",
+        "",
+        "## Files Downloaded",
+        "",
+        *[f"- `{f['local_path']}` ({_size_label(f)}, {f['data_type']})" for f in downloaded],
+        "",
+        "---",
+        f"*{DISCLAIMER}*",
+        "",
+    ]
     report_path = output_dir / "report.md"
-    report_path.write_text(
-        f"# Demo Report\n\nAccession: {DEMO_ACCESSION}\n"
-        f"Files downloaded: {sum(1 for f in manifest_files if f['downloaded'])}\n"
+    report_path.write_text("\n".join(report_lines))
+    write_result_json(
+        output_dir, "article-data-fetcher", "0.1.0",
+        {"accession": DEMO_ACCESSION, "files_listed": len(files), "files_downloaded": len(downloaded)},
+        data={"files": manifest_files},
     )
+    _write_demo_reproducibility(output_dir, unzip)
     print(f"\n✅ Demo complete.\n   Manifest : {manifest_path}\n   Report   : {report_path}")
+
+
+def _write_demo_reproducibility(output_dir: Path, unzip: bool) -> None:
+    """reproducibility/ with the shared helpers; checksums cover every output."""
+    output_dir = output_dir.resolve()
+    repro_dir = output_dir / "reproducibility"
+    outputs = sorted(p for p in output_dir.rglob("*") if p.is_file() and repro_dir not in p.parents)
+    args: list[str | ReproPath] = ["--demo"] + ([] if unzip else ["--no-unzip"])
+    commands = write_portable_commands_sh(
+        output_dir,
+        ReproCommand(
+            script_path=Path("skills/article-data-fetcher/article_data_fetcher.py"),
+            args=[*args, "--output", ReproPath(output_dir, anchor="output_dir")],
+            comment="Reproduce this article-data-fetcher demo (offline: recorded GEO responses)",
+        ),
+        repo_root=_PROJECT_ROOT,
+    )
+    environment = write_environment_yml(output_dir, env_name="clawbio-article-data-fetcher",
+                                        pip_deps=["requests"])
+    write_checksums([*outputs, commands, environment], output_dir, anchor=output_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -1075,8 +1173,6 @@ def main() -> None:
     unzip = not args.no_unzip
 
     if args.demo:
-        if args.output == "./downloads":
-            output_dir = Path("skills/article-data-fetcher/demo")
         run_demo(output_dir, unzip=unzip)
         return
 

@@ -68,8 +68,8 @@ metadata:
       - biopython>=1.83
       - pydantic>=2.0
   demo_data:
-    - path: examples/demo_article.txt
-      description: A test DOI pointing to a public GEO dataset
+    - path: examples/demo_GSE100866_http.json.gz
+      description: GEO's responses for GSE100866 (series page, file listing, smallest file), recorded so the demo runs offline
   endpoints:
     cli: python skills/article-data-fetcher/article_data_fetcher.py --id {article_id} --types {file_types} --output {output_dir}
   openclaw:
@@ -256,7 +256,7 @@ python skills/article-data-fetcher/article_data_fetcher.py \
   --types all \
   --output ./downloads
 
-# Demo mode (uses a public GEO test accession)
+# Demo mode (offline: recorded GEO responses, no prompt)
 python skills/article-data-fetcher/article_data_fetcher.py --demo --output /tmp/demo
 
 # Via ClawBio runner
@@ -269,7 +269,7 @@ python clawbio.py run article-data-fetcher --id 10.xxxx/xxxxx --types h5ad,csv -
 python clawbio.py run article-data-fetcher --demo
 ```
 
-Expected output: Downloads 2 small public files from a Zenodo demo accession, writes `manifest.json` and `report.md` to `/tmp/demo`.
+Expected output: lists the 9 supplementary files of GEO series GSE100866 and fetches the smallest, `GSE100866_CD8_merged-ADT_umi.csv.gz` (19 KB, unzipped to `.csv`), from responses recorded in `examples/demo_GSE100866_http.json.gz`. The demo makes no network calls and asks nothing; it writes `report.md`, `manifest.json`, `result.json` and `reproducibility/` under `--output`.
 
 ## Example Queries
 
@@ -310,9 +310,11 @@ Output directory: ./downloads/GSE123456/
 output_dir/
 ├── report.md
 ├── manifest.json
-└── <accession>/
-    ├── matrix.h5ad
-    └── metadata.csv
+├── result.json            # --demo only
+├── <accession>/
+│   ├── matrix.h5ad
+│   └── metadata.csv
+└── reproducibility/       # --demo only: commands.sh, environment.yml, checksums.sha256
 ```
 
 `manifest.json` schema:
