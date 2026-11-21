@@ -186,6 +186,21 @@ def test_demo_runs_offline_without_prompting(demo_run) -> None:
     assert adf.DISCLAIMER in report
 
 
+def test_demo_report_labels_geo_sizes_as_listed(demo_run) -> None:
+    """GEO's Apache listing rounds sizes ('19K'), so the report must not present them as exact."""
+    _, out = demo_run
+    line = next(l for l in (out / "report.md").read_text().splitlines() if DEMO_FILE in l)
+    assert "(listed size " in line
+
+
+def test_demo_without_listed_sizes_fails_with_a_clear_message(monkeypatch, tmp_path: Path) -> None:
+    unsized = [{"filename": "x.txt.gz", "url": "ftp://example/x.txt.gz", "repository": "GEO",
+                "accession": adf.DEMO_ACCESSION, "size_bytes": None, "data_type": "data file"}]
+    monkeypatch.setattr(adf, "fetch_geo_files", lambda accession: unsized)
+    with pytest.raises(RuntimeError, match="no file sizes"):
+        adf.run_demo(tmp_path / "out")
+
+
 def test_demo_manifest_records_no_absolute_paths(demo_run) -> None:
     _, out = demo_run
     manifest = json.loads((out / "manifest.json").read_text())
@@ -243,6 +258,7 @@ def test_demo_output_matches_snapshot(tmp_path):
       "repository": "GEO",
       "accession": "GSE100866",
       "size_bytes": 19456,
+      "size_is_listed": true,
       "data_type": "count matrix",
       "local_path": "GSE100866/GSE100866_CD8_merged-ADT_umi.csv",
       "downloaded": true
@@ -258,7 +274,7 @@ def test_demo_output_matches_snapshot(tmp_path):
 
 ## Files Downloaded
 
-- `GSE100866/GSE100866_CD8_merged-ADT_umi.csv` (19.0 KB, count matrix)
+- `GSE100866/GSE100866_CD8_merged-ADT_umi.csv` (listed size 19.0 KB, count matrix)
 
 ---
 *ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.*
@@ -282,6 +298,7 @@ def test_demo_output_matches_snapshot(tmp_path):
         "repository": "GEO",
         "accession": "GSE100866",
         "size_bytes": 19456,
+        "size_is_listed": true,
         "data_type": "count matrix",
         "local_path": "GSE100866/GSE100866_CD8_merged-ADT_umi.csv",
         "downloaded": true

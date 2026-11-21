@@ -404,6 +404,8 @@ def fetch_geo_files(accession: str) -> list[dict]:
                     "repository": "GEO",
                     "accession": accession,
                     "size_bytes": size_bytes,
+                    # Apache listings round sizes ("19K"), so this is not exact.
+                    "size_is_listed": True,
                     "data_type": infer_data_type(fname, desc),
                 })
             if files:
@@ -443,6 +445,14 @@ def _parse_size(size_str: str) -> Optional[int]:
         return int(size_str)
     except ValueError:
         return None
+
+
+def _size_label(f: dict) -> str:
+    """A file's size for reports, marked when it comes from a rounded directory listing."""
+    size_str = _fmt_size(f.get("size_bytes"))
+    if f.get("size_is_listed") and f.get("size_bytes") is not None:
+        return f"listed size {size_str}"
+    return size_str
 
 
 def _fmt_size(size_bytes: Optional[int]) -> str:
@@ -1005,7 +1015,7 @@ def run(
         "",
     ]
     for f in downloaded:
-        size_str = _fmt_size(f.get("size_bytes"))
+        size_str = _size_label(f)
         report_lines.append(f"- ✅ `{f['filename']}` ({size_str}) — {f['repository']}")
     if skipped:
         report_lines += ["", f"## Files Skipped — type not requested ({len(skipped)})", ""]
@@ -1068,7 +1078,13 @@ def run_demo(output_dir: Path, unzip: bool = True) -> None:
     with _serve_recorded_http(DEMO_HTTP):
         files = fetch_geo_files(DEMO_ACCESSION)
         print_file_listing(files, title=f"\nFound {len(files)} file(s) in {DEMO_ACCESSION}:")
-        selected = [min((f for f in files if f["size_bytes"]), key=lambda f: f["size_bytes"])]
+        sized = [f for f in files if f.get("size_bytes")]
+        if not sized:
+            raise RuntimeError(
+                f"The recorded GEO listing for {DEMO_ACCESSION} has no file sizes, so the "
+                f"demo cannot pick the smallest file. Re-record {DEMO_HTTP.name}."
+            )
+        selected = [min(sized, key=lambda f: f["size_bytes"])]
         print(f"\n⬇️  Demo downloads the smallest file to {output_dir}/\n")
         manifest_files = []
         for f in selected:
@@ -1091,7 +1107,7 @@ def run_demo(output_dir: Path, unzip: bool = True) -> None:
         "",
         "## Files Downloaded",
         "",
-        *[f"- `{f['local_path']}` ({_fmt_size(f['size_bytes'])}, {f['data_type']})" for f in downloaded],
+        *[f"- `{f['local_path']}` ({_size_label(f)}, {f['data_type']})" for f in downloaded],
         "",
         "---",
         f"*{DISCLAIMER}*",
