@@ -281,6 +281,9 @@ def test_nondefault_cli_bundle_replays_numeric_results(tmp_path, source_kind):
         cwd=tmp_path,
         env={
             **os.environ,
+            # The bundle sits outside any checkout, and commands.sh no longer records
+            # the generating machine's checkout path, so name the checkout to replay with.
+            "CLAWBIO_ROOT": str(SKILL_DIR.parents[1]),
             "PYTHON": sys.executable,
             "REPLAY_OUTPUT": str(tmp_path / "replay"),
             "INPUT_PATH": str(input_path) if input_path is not None else "",

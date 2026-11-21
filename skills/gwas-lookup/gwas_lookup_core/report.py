@@ -41,6 +41,17 @@ def _fmt_float(val: Any, decimals: int = 3) -> str:
         return str(val)
 
 
+def _fmt_effect(assoc: dict) -> str:
+    """Format an effect size together with the measure it is reported in."""
+    if assoc.get("or_beta") is not None:
+        return f"{_fmt_float(assoc.get('or_beta'))} (OR)"
+    if assoc.get("beta") is not None:
+        if assoc.get("source") == "open_targets":
+            return f"{_fmt_float(assoc.get('beta'))} (beta, fine-mapped)"
+        return f"{_fmt_float(assoc.get('beta'))} (beta)"
+    return "N/A"
+
+
 # ---------------------------------------------------------------------------
 # Markdown report
 # ---------------------------------------------------------------------------
@@ -95,18 +106,21 @@ def generate_markdown(variant: dict, merged: dict) -> str:
                  f"{summary.get('total_gwas_significant', 0)} genome-wide significant)")
     lines.append("")
     if gwas:
-        lines.append("| Trait | P-value | OR/Beta | Risk Allele | Source | Study |")
-        lines.append("|-------|---------|---------|-------------|--------|-------|")
+        lines.append("| Trait | P-value | Effect (type) | Risk Allele | Source | Study |")
+        lines.append("|-------|---------|---------------|-------------|--------|-------|")
         for a in gwas[:50]:
-            or_beta = _fmt_float(a.get("or_beta")) if a.get("or_beta") else _fmt_float(a.get("beta"))
             gws = " **" if a.get("genome_wide_significant") else ""
             lines.append(
                 f"| {a.get('trait', '')}{gws} | {_fmt_pval(a.get('pval'))} "
-                f"| {or_beta} | {a.get('risk_allele', '')} "
+                f"| {_fmt_effect(a)} | {a.get('risk_allele', '')} "
                 f"| {a.get('source', '')} | {a.get('study', '')} |"
             )
         if len(gwas) > 50:
             lines.append(f"| ... | *{len(gwas) - 50} more in CSV* | | | | |")
+        lines.append("")
+        lines.append("*Open Targets rows are fine-mapped credible sets. Their beta is a "
+                     "posterior estimate for this variant, not a GWAS Catalog effect size, "
+                     "and the query does not request an effect allele.*")
     else:
         lines.append("*No GWAS associations found.*")
     lines.append("")

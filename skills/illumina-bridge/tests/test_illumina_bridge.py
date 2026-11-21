@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from clawbio.common import demo_runner
+
 import csv
 import importlib.util
 import json
@@ -724,3 +726,10 @@ def test_sample_manifest_csv_contains_expected_columns(tmp_path):
     for row in rows:
         for field in ("ica_sample_id", "ica_analysis_status", "ica_cohort", "ica_notes"):
             assert row[field] == ""
+
+
+def test_demo_outputs_do_not_record_the_checkout_path(tmp_path):
+    """Reports are shared; an absolute path leaks the user's name and folder layout."""
+    outputs = demo_runner.demo_outputs("illumina-bridge", tmp_path)
+    leaks = [name for name, text in outputs.items() if str(demo_runner.PROJECT_ROOT) in text]
+    assert leaks == []

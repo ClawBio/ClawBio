@@ -807,13 +807,13 @@
       "maturity_evidence": {
         "has_skill_md": true,
         "has_script": true,
-        "has_tests": false,
+        "has_tests": true,
         "has_demo": true,
         "cli_registered": true,
         "benchmark_validated": false
       },
       "has_script": true,
-      "has_tests": false,
+      "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run metagenomics --demo",
       "dependencies": [],

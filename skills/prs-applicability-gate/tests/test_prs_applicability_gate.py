@@ -21,6 +21,9 @@ from pathlib import Path
 
 import pytest
 import yaml
+from inline_snapshot import snapshot
+
+from clawbio.common import demo_runner
 
 SKILL = Path(__file__).resolve().parents[1]
 REPO_ROOT = SKILL.parents[1]
@@ -1020,3 +1023,770 @@ def test_skill_md_sections_conform():
     assert "Chaining partners" in _section(body, "Integration with Bio Orchestrator")
     assert "Review cadence" in _section(body, "Maintenance")
     assert len((SKILL / "SKILL.md").read_text(encoding="utf-8").splitlines()) < 500
+
+
+# ── Demo output snapshot ──────────────────────────────────────────────────────
+# Fails when a code change alters any demo number. If the change is intended,
+# run `pytest skills/prs-applicability-gate/tests --inline-snapshot=fix`; it rewrites the
+# snapshot() values below, and the PR diff shows which numbers moved.
+
+@pytest.mark.demo_snapshot
+def test_demo_output_matches_snapshot(tmp_path):
+    assert demo_runner.demo_outputs("prs-applicability-gate", tmp_path) == snapshot({'report.md': """\
+# PRS Applicability Gate Report
+
+**Mode**: demo, 3 SYNTHETIC gate inputs bundled with the skill (invented values; no person, no genotype, no real PGS Catalog record)
+**Calibration**: `2026.09.26-3` (canonical; config sha256:727942cad27a64f1f2beec1a3298b354a739581e4124cda5d290b72714b76b7f) · **Gate**: 2.2.0
+
+| Input | Score | Status | Primary reason | Reason codes |
+|---|---|---|---|---|
+| synthetic_A_supported.gate_input.json | PGS_SYNTHETIC_A | **SUPPORTED** | - | - |
+| synthetic_B_raw_only.gate_input.json | PGS_SYNTHETIC_B | **RAW_ONLY** | TARGET_REFERENCE_UNRESOLVED | TARGET_REFERENCE_UNRESOLVED |
+| synthetic_C_abstain.gate_input.json | PGS_SYNTHETIC_C | **ABSTAIN** | LOW_SCOREABILITY | LOW_SCOREABILITY, VARIANTS_MISSING, TARGET_REFERENCE_UNRESOLVED |
+
+**SUPPORTED**: raw score, standardised score and reference percentile may be shown; **RAW_ONLY**: only the raw score may be shown; no relative statement is supported; **ABSTAIN**: nothing may be reported for this score and person.
+
+## PRS applicability gate: PGS_SYNTHETIC_A
+
+**Status: SUPPORTED**
+
+### What may be reported
+
+- Raw score: yes
+- Standardised score and percentile: yes
+- Absolute risk: never
+
+### Rule trace
+
+| Rule | Question | Outcome | Detail |
+|---|---|---|---|
+| G1 INPUT_VALID | Is the gate input well-formed and unmodified? | pass | schema v2 |
+| G2 SCORE_FORMAT | Is the scoring file a plain additive score on a log scale? | pass | additive; weight_type 'beta' |
+| G3 BUILD | Is the genotype file's genome build established (never assumed)? | pass | build GRCh38; method empirical (rsID anchor positions) + declaration |
+| G4 ALLELES | Are located variants' alleles consistent with the scoring file? | pass | 0.2% of 1170 located variants unreconcilable (max 5%) |
+| G5 SCOREABILITY | Does the computable score represent the published score (r >= r_min)? | pass | r = 0.962 (reference_panel_correlation); r_min 0.9; 1152/1200 variants matched; largest loss: missing |
+| G6 SEX_SCORE | Is a sex-specific score applied to a person of that sex? | not_applicable | score specificity none |
+| G7 METADATA | Is the PGS Catalog record resolved and internally consistent? | pass | all blocking consistency checks passed |
+| G8 PLACEMENT | Is the person placed stably inside one reference group? | pass | RESOLVED: inside the EUR reference cloud in 100% of bootstrap replicates |
+| G9 EVALUATION | Is there evidence of association (95% CI above the null) in an evaluation of the person's group? (Association only: not clinically useful discrimination or calibration.) | pass | 1 EUR evaluation units with a 95% CI above the null (1 with metrics; 12,000 individuals) |
+| G10 SEX_EVALUATION | Do the informative evaluations include the person's sex? | pass | 1 of 1 informative EUR evaluations include female participants; 0 of unknown sex composition |
+| G11 REFERENCE_DISTRIBUTION | Is there a reference distribution on the matched variants? | pass | 500 EUR reference individuals scored on 1152 matched variants |
+| G12 REFERENCE_SENSITIVITY | Is the percentile robust to the reference population chosen? | pass | percentile intervals overlap across EUR reference populations |
+
+Calibration 2026.09.26-3; gate 2.2.0; input sha256:8f0efbc83fdae98b17adcb05a81fb7d64b7209ff97942441b0453a469bdf9f73
+
+## PRS applicability gate: PGS_SYNTHETIC_B
+
+**Status: RAW_ONLY** (TARGET_REFERENCE_UNRESOLVED)
+
+The person could not be placed stably inside one reference group (intermediate/admixed, unstable, or too few sites).
+
+Detail: INTERMEDIATE: between the AFR and EUR reference clouds (intermediate placement)
+
+### What may be reported
+
+- Raw score: yes
+- Standardised score and percentile: no
+- Absolute risk: never
+
+### Rule trace
+
+| Rule | Question | Outcome | Detail |
+|---|---|---|---|
+| G1 INPUT_VALID | Is the gate input well-formed and unmodified? | pass | schema v2 |
+| G2 SCORE_FORMAT | Is the scoring file a plain additive score on a log scale? | pass | additive; weight_type 'beta' |
+| G3 BUILD | Is the genotype file's genome build established (never assumed)? | pass | build GRCh38; method empirical (rsID anchor positions) + declaration |
+| G4 ALLELES | Are located variants' alleles consistent with the scoring file? | pass | 0.2% of 1170 located variants unreconcilable (max 5%) |
+| G5 SCOREABILITY | Does the computable score represent the published score (r >= r_min)? | pass | r = 0.955 (reference_panel_correlation); r_min 0.9; 1152/1200 variants matched; largest loss: missing |
+| G6 SEX_SCORE | Is a sex-specific score applied to a person of that sex? | not_applicable | score specificity none |
+| G7 METADATA | Is the PGS Catalog record resolved and internally consistent? | pass | all blocking consistency checks passed |
+| G8 PLACEMENT | Is the person placed stably inside one reference group? | fail -> RAW_ONLY | INTERMEDIATE: between the AFR and EUR reference clouds (intermediate placement) |
+| G9 EVALUATION | Is there evidence of association (95% CI above the null) in an evaluation of the person's group? (Association only: not clinically useful discrimination or calibration.) | not_applicable | no resolved reference group to match evaluations against |
+| G10 SEX_EVALUATION | Do the informative evaluations include the person's sex? | not_applicable | no resolved reference group |
+| G11 REFERENCE_DISTRIBUTION | Is there a reference distribution on the matched variants? | not_applicable | no resolved reference group |
+| G12 REFERENCE_SENSITIVITY | Is the percentile robust to the reference population chosen? | not_applicable | no resolved reference group |
+
+### What would change the result
+
+- TARGET_REFERENCE_UNRESOLVED: a placement RESOLVED from at least 200 sites with stability >= 0.95, against a reference panel that represents this person's genetic background (e.g. admixed references with local-ancestry-aware scoring); not something the gate can relax
+
+Calibration 2026.09.26-3; gate 2.2.0; input sha256:1688974ec54de2a16444c90abb7acfe51b9be3ac1a4a597abe8d79f934345a17
+
+## PRS applicability gate: PGS_SYNTHETIC_C
+
+**Status: ABSTAIN** (LOW_SCOREABILITY)
+
+The score computable from this genotype correlates too weakly with the published score.
+
+Detail: r = 0.410 (reference_panel_correlation); r_min 0.9; 41/1200 variants matched; largest loss: missing
+
+### What may be reported
+
+- Raw score: no
+- Standardised score and percentile: no
+- Absolute risk: never
+
+### Rule trace
+
+| Rule | Question | Outcome | Detail |
+|---|---|---|---|
+| G1 INPUT_VALID | Is the gate input well-formed and unmodified? | pass | schema v2 |
+| G2 SCORE_FORMAT | Is the scoring file a plain additive score on a log scale? | pass | additive; weight_type 'beta' |
+| G3 BUILD | Is the genotype file's genome build established (never assumed)? | pass | build GRCh38; method empirical (rsID anchor positions) + declaration |
+| G4 ALLELES | Are located variants' alleles consistent with the scoring file? | pass | 0.0% of 42 located variants unreconcilable (max 5%) |
+| G5 SCOREABILITY | Does the computable score represent the published score (r >= r_min)? | fail -> ABSTAIN | r = 0.410 (reference_panel_correlation); r_min 0.9; 41/1200 variants matched; largest loss: missing |
+| G6 SEX_SCORE | Is a sex-specific score applied to a person of that sex? | not_applicable | score specificity none |
+| G7 METADATA | Is the PGS Catalog record resolved and internally consistent? | pass | all blocking consistency checks passed |
+| G8 PLACEMENT | Is the person placed stably inside one reference group? | fail -> RAW_ONLY | UNRESOLVED: only 150 usable sites; placement needs at least 200 |
+| G9 EVALUATION | Is there evidence of association (95% CI above the null) in an evaluation of the person's group? (Association only: not clinically useful discrimination or calibration.) | not_applicable | no resolved reference group to match evaluations against |
+| G10 SEX_EVALUATION | Do the informative evaluations include the person's sex? | not_applicable | no resolved reference group |
+| G11 REFERENCE_DISTRIBUTION | Is there a reference distribution on the matched variants? | not_applicable | no resolved reference group |
+| G12 REFERENCE_SENSITIVITY | Is the percentile robust to the reference population chosen? | not_applicable | no resolved reference group |
+
+### What would change the result
+
+- LOW_SCOREABILITY: genotype data covering the score's heavily weighted variants so that r >= 0.9 (e.g. sequencing or imputation instead of a sparse array)
+- TARGET_REFERENCE_UNRESOLVED: a placement RESOLVED from at least 200 sites with stability >= 0.95, against a reference panel that represents this person's genetic background (e.g. admixed references with local-ancestry-aware scoring); not something the gate can relax
+
+Calibration 2026.09.26-3; gate 2.2.0; input sha256:cb603c65e279854a506085e8bb64b047c9a583010fbba959be7605939732f1b7
+
+---
+
+*Research software, not a medical device. SUPPORTED is a research-prototype reportability state, not a clinical recommendation: it requires evidence of association in a relevant evaluation group, which is not evidence of clinically useful discrimination or calibration. A polygenic score is not a diagnosis, and this gate never converts a score into absolute risk. Genetic reference placement is not ethnicity or identity. ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.*
+""", 'result.json': """\
+{
+  "skill": "prs-applicability-gate",
+  "version": "2.2.0",
+  "input_checksum": "",
+  "datasets": {
+    "synthetic_A_supported.gate_input.json": "sha256:d9dbb6095cf252a8b7a8e51b55b1f02692573e91d2bf8f99a6e205dac0bebabb",
+    "synthetic_B_raw_only.gate_input.json": "sha256:f6ad2dcde651e815e6217c91c94859a066f2176908a4baec8ff9106b4fc6571b",
+    "synthetic_C_abstain.gate_input.json": "sha256:0cc14a428b078f8727c06edd22aa6d55d4d2e24130329c06dce1c0f2a7d686bc"
+  },
+  "summary": {
+    "mode": "demo",
+    "synthetic_demo": true,
+    "n_inputs": 3,
+    "status_counts": {
+      "SUPPORTED": 1,
+      "RAW_ONLY": 1,
+      "ABSTAIN": 1
+    },
+    "calibration_version": "2026.09.26-3",
+    "gate_version": "2.2.0",
+    "config_sha256": "sha256:727942cad27a64f1f2beec1a3298b354a739581e4124cda5d290b72714b76b7f",
+    "config_canonical": true,
+    "decisions": [
+      {
+        "input": "synthetic_A_supported.gate_input.json",
+        "pgs_id": "PGS_SYNTHETIC_A",
+        "status": "SUPPORTED",
+        "primary_reason": null,
+        "reason_codes": []
+      },
+      {
+        "input": "synthetic_B_raw_only.gate_input.json",
+        "pgs_id": "PGS_SYNTHETIC_B",
+        "status": "RAW_ONLY",
+        "primary_reason": "TARGET_REFERENCE_UNRESOLVED",
+        "reason_codes": [
+          "TARGET_REFERENCE_UNRESOLVED"
+        ]
+      },
+      {
+        "input": "synthetic_C_abstain.gate_input.json",
+        "pgs_id": "PGS_SYNTHETIC_C",
+        "status": "ABSTAIN",
+        "primary_reason": "LOW_SCOREABILITY",
+        "reason_codes": [
+          "LOW_SCOREABILITY",
+          "VARIANTS_MISSING",
+          "TARGET_REFERENCE_UNRESOLVED"
+        ]
+      }
+    ]
+  },
+  "data": {
+    "decisions": [
+      {
+        "schema": "prs-applicability-gate.output.v2",
+        "pgs_id": "PGS_SYNTHETIC_A",
+        "status": "SUPPORTED",
+        "primary_reason": null,
+        "reason_codes": [],
+        "allowed_claims": {
+          "raw_score": true,
+          "standardized_score": true,
+          "percentile": true,
+          "absolute_risk": false
+        },
+        "evidence_used": {
+          "score_file.unsupported_features": [],
+          "score_file.ratio_weight_type": false,
+          "score_file.variants_interactions": 0,
+          "score_file.n_parse_problems": 0,
+          "genotype.build": "GRCh38",
+          "harmonisation.allele_mismatch_fraction": 0.0017,
+          "scoreability.r": 0.962,
+          "harmonisation.weight_loss_by_status": {
+            "missing": 0.021,
+            "palindromic_excluded": 0.012,
+            "allele_mismatch": 0.001
+          },
+          "person.sex": "female",
+          "candidate.sex_specific": null,
+          "catalog_metadata.status": "resolved",
+          "placement.status": "RESOLVED",
+          "placement.placement": "EUR",
+          "placement.n_sites_used": 5200,
+          "placement.placement_stability": 1.0,
+          "evaluation.relevant_units": 1,
+          "evaluation.relevant_units_with_metric": 1,
+          "evaluation.relevant_units_informative": 1,
+          "evaluation.informative_units_sex_unknown": 0,
+          "reference_distribution.available": true,
+          "reference_distribution.reference_group": "EUR",
+          "reference_distribution.reference_n": 500,
+          "reference_distribution.n_intersection": 1152,
+          "reference_distribution.reference_sensitive": false
+        },
+        "evidence_missing": [],
+        "calibration_version": "2026.09.26-3",
+        "rule_trace": [
+          {
+            "rule": "G1",
+            "name": "INPUT_VALID",
+            "question": "Is the gate input well-formed and unmodified?",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [],
+            "detail": "schema v2",
+            "what_would_change": null
+          },
+          {
+            "rule": "G2",
+            "name": "SCORE_FORMAT",
+            "question": "Is the scoring file a plain additive score on a log scale?",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [],
+            "detail": "additive; weight_type 'beta'",
+            "what_would_change": null
+          },
+          {
+            "rule": "G3",
+            "name": "BUILD",
+            "question": "Is the genotype file's genome build established (never assumed)?",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [
+              "BUILD_UNRESOLVED"
+            ],
+            "detail": "build GRCh38; method empirical (rsID anchor positions) + declaration",
+            "what_would_change": null
+          },
+          {
+            "rule": "G4",
+            "name": "ALLELES",
+            "question": "Are located variants' alleles consistent with the scoring file?",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [
+              "ALLELE_HARMONIZATION_FAILED"
+            ],
+            "detail": "0.2% of 1170 located variants unreconcilable (max 5%)",
+            "what_would_change": null
+          },
+          {
+            "rule": "G5",
+            "name": "SCOREABILITY",
+            "question": "Does the computable score represent the published score (r >= r_min)?",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [
+              "LOW_SCOREABILITY"
+            ],
+            "detail": "r = 0.962 (reference_panel_correlation); r_min 0.9; 1152/1200 variants matched; largest loss: missing",
+            "what_would_change": null
+          },
+          {
+            "rule": "G6",
+            "name": "SEX_SCORE",
+            "question": "Is a sex-specific score applied to a person of that sex?",
+            "outcome": "not_applicable",
+            "effect": null,
+            "codes": [],
+            "detail": "score specificity none",
+            "what_would_change": null
+          },
+          {
+            "rule": "G7",
+            "name": "METADATA",
+            "question": "Is the PGS Catalog record resolved and internally consistent?",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [],
+            "detail": "all blocking consistency checks passed",
+            "what_would_change": null
+          },
+          {
+            "rule": "G8",
+            "name": "PLACEMENT",
+            "question": "Is the person placed stably inside one reference group?",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [
+              "TARGET_REFERENCE_UNRESOLVED"
+            ],
+            "detail": "RESOLVED: inside the EUR reference cloud in 100% of bootstrap replicates",
+            "what_would_change": null
+          },
+          {
+            "rule": "G9",
+            "name": "EVALUATION",
+            "question": "Is there evidence of association (95% CI above the null) in an evaluation of the person's group? (Association only: not clinically useful discrimination or calibration.)",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [],
+            "detail": "1 EUR evaluation units with a 95% CI above the null (1 with metrics; 12,000 individuals)",
+            "what_would_change": null
+          },
+          {
+            "rule": "G10",
+            "name": "SEX_EVALUATION",
+            "question": "Do the informative evaluations include the person's sex?",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [],
+            "detail": "1 of 1 informative EUR evaluations include female participants; 0 of unknown sex composition",
+            "what_would_change": null
+          },
+          {
+            "rule": "G11",
+            "name": "REFERENCE_DISTRIBUTION",
+            "question": "Is there a reference distribution on the matched variants?",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [
+              "REFERENCE_DISTRIBUTION_UNAVAILABLE"
+            ],
+            "detail": "500 EUR reference individuals scored on 1152 matched variants",
+            "what_would_change": null
+          },
+          {
+            "rule": "G12",
+            "name": "REFERENCE_SENSITIVITY",
+            "question": "Is the percentile robust to the reference population chosen?",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [],
+            "detail": "percentile intervals overlap across EUR reference populations",
+            "what_would_change": null
+          }
+        ],
+        "what_would_change_result": [],
+        "provenance": {
+          "gate": "prs-applicability-gate",
+          "gate_version": "2.2.0",
+          "config_sha256": "sha256:727942cad27a64f1f2beec1a3298b354a739581e4124cda5d290b72714b76b7f",
+          "config_canonical": true,
+          "input_digest": "sha256:8f0efbc83fdae98b17adcb05a81fb7d64b7209ff97942441b0453a469bdf9f73",
+          "deterministic": true
+        },
+        "disclaimer": "Research software, not a medical device. SUPPORTED is a research-prototype reportability state, not a clinical recommendation: it requires evidence of association in a relevant evaluation group, which is not evidence of clinically useful discrimination or calibration. A polygenic score is not a diagnosis, and this gate never converts a score into absolute risk. Genetic reference placement is not ethnicity or identity. ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions."
+      },
+      {
+        "schema": "prs-applicability-gate.output.v2",
+        "pgs_id": "PGS_SYNTHETIC_B",
+        "status": "RAW_ONLY",
+        "primary_reason": {
+          "code": "TARGET_REFERENCE_UNRESOLVED",
+          "rule": "G8",
+          "detail": "INTERMEDIATE: between the AFR and EUR reference clouds (intermediate placement)",
+          "meaning": "The person could not be placed stably inside one reference group (intermediate/admixed, unstable, or too few sites)."
+        },
+        "reason_codes": [
+          "TARGET_REFERENCE_UNRESOLVED"
+        ],
+        "allowed_claims": {
+          "raw_score": true,
+          "standardized_score": false,
+          "percentile": false,
+          "absolute_risk": false
+        },
+        "evidence_used": {
+          "score_file.unsupported_features": [],
+          "score_file.ratio_weight_type": false,
+          "score_file.variants_interactions": 0,
+          "score_file.n_parse_problems": 0,
+          "genotype.build": "GRCh38",
+          "harmonisation.allele_mismatch_fraction": 0.0017,
+          "scoreability.r": 0.955,
+          "harmonisation.weight_loss_by_status": {
+            "missing": 0.021,
+            "palindromic_excluded": 0.012,
+            "allele_mismatch": 0.001
+          },
+          "person.sex": "male",
+          "candidate.sex_specific": null,
+          "catalog_metadata.status": "resolved",
+          "placement.status": "INTERMEDIATE",
+          "placement.placement": null,
+          "placement.n_sites_used": 5100,
+          "placement.placement_stability": 0.41
+        },
+        "evidence_missing": [],
+        "calibration_version": "2026.09.26-3",
+        "rule_trace": [
+          {
+            "rule": "G1",
+            "name": "INPUT_VALID",
+            "question": "Is the gate input well-formed and unmodified?",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [],
+            "detail": "schema v2",
+            "what_would_change": null
+          },
+          {
+            "rule": "G2",
+            "name": "SCORE_FORMAT",
+            "question": "Is the scoring file a plain additive score on a log scale?",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [],
+            "detail": "additive; weight_type 'beta'",
+            "what_would_change": null
+          },
+          {
+            "rule": "G3",
+            "name": "BUILD",
+            "question": "Is the genotype file's genome build established (never assumed)?",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [
+              "BUILD_UNRESOLVED"
+            ],
+            "detail": "build GRCh38; method empirical (rsID anchor positions) + declaration",
+            "what_would_change": null
+          },
+          {
+            "rule": "G4",
+            "name": "ALLELES",
+            "question": "Are located variants' alleles consistent with the scoring file?",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [
+              "ALLELE_HARMONIZATION_FAILED"
+            ],
+            "detail": "0.2% of 1170 located variants unreconcilable (max 5%)",
+            "what_would_change": null
+          },
+          {
+            "rule": "G5",
+            "name": "SCOREABILITY",
+            "question": "Does the computable score represent the published score (r >= r_min)?",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [
+              "LOW_SCOREABILITY"
+            ],
+            "detail": "r = 0.955 (reference_panel_correlation); r_min 0.9; 1152/1200 variants matched; largest loss: missing",
+            "what_would_change": null
+          },
+          {
+            "rule": "G6",
+            "name": "SEX_SCORE",
+            "question": "Is a sex-specific score applied to a person of that sex?",
+            "outcome": "not_applicable",
+            "effect": null,
+            "codes": [],
+            "detail": "score specificity none",
+            "what_would_change": null
+          },
+          {
+            "rule": "G7",
+            "name": "METADATA",
+            "question": "Is the PGS Catalog record resolved and internally consistent?",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [],
+            "detail": "all blocking consistency checks passed",
+            "what_would_change": null
+          },
+          {
+            "rule": "G8",
+            "name": "PLACEMENT",
+            "question": "Is the person placed stably inside one reference group?",
+            "outcome": "fail",
+            "effect": "RAW_ONLY",
+            "codes": [
+              "TARGET_REFERENCE_UNRESOLVED"
+            ],
+            "detail": "INTERMEDIATE: between the AFR and EUR reference clouds (intermediate placement)",
+            "what_would_change": "a placement RESOLVED from at least 200 sites with stability >= 0.95, against a reference panel that represents this person's genetic background (e.g. admixed references with local-ancestry-aware scoring); not something the gate can relax"
+          },
+          {
+            "rule": "G9",
+            "name": "EVALUATION",
+            "question": "Is there evidence of association (95% CI above the null) in an evaluation of the person's group? (Association only: not clinically useful discrimination or calibration.)",
+            "outcome": "not_applicable",
+            "effect": null,
+            "codes": [],
+            "detail": "no resolved reference group to match evaluations against",
+            "what_would_change": null
+          },
+          {
+            "rule": "G10",
+            "name": "SEX_EVALUATION",
+            "question": "Do the informative evaluations include the person's sex?",
+            "outcome": "not_applicable",
+            "effect": null,
+            "codes": [],
+            "detail": "no resolved reference group",
+            "what_would_change": null
+          },
+          {
+            "rule": "G11",
+            "name": "REFERENCE_DISTRIBUTION",
+            "question": "Is there a reference distribution on the matched variants?",
+            "outcome": "not_applicable",
+            "effect": null,
+            "codes": [],
+            "detail": "no resolved reference group",
+            "what_would_change": null
+          },
+          {
+            "rule": "G12",
+            "name": "REFERENCE_SENSITIVITY",
+            "question": "Is the percentile robust to the reference population chosen?",
+            "outcome": "not_applicable",
+            "effect": null,
+            "codes": [],
+            "detail": "no resolved reference group",
+            "what_would_change": null
+          }
+        ],
+        "what_would_change_result": [
+          {
+            "rule": "G8",
+            "code": "TARGET_REFERENCE_UNRESOLVED",
+            "change": "a placement RESOLVED from at least 200 sites with stability >= 0.95, against a reference panel that represents this person's genetic background (e.g. admixed references with local-ancestry-aware scoring); not something the gate can relax"
+          }
+        ],
+        "provenance": {
+          "gate": "prs-applicability-gate",
+          "gate_version": "2.2.0",
+          "config_sha256": "sha256:727942cad27a64f1f2beec1a3298b354a739581e4124cda5d290b72714b76b7f",
+          "config_canonical": true,
+          "input_digest": "sha256:1688974ec54de2a16444c90abb7acfe51b9be3ac1a4a597abe8d79f934345a17",
+          "deterministic": true
+        },
+        "disclaimer": "Research software, not a medical device. SUPPORTED is a research-prototype reportability state, not a clinical recommendation: it requires evidence of association in a relevant evaluation group, which is not evidence of clinically useful discrimination or calibration. A polygenic score is not a diagnosis, and this gate never converts a score into absolute risk. Genetic reference placement is not ethnicity or identity. ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions."
+      },
+      {
+        "schema": "prs-applicability-gate.output.v2",
+        "pgs_id": "PGS_SYNTHETIC_C",
+        "status": "ABSTAIN",
+        "primary_reason": {
+          "code": "LOW_SCOREABILITY",
+          "rule": "G5",
+          "detail": "r = 0.410 (reference_panel_correlation); r_min 0.9; 41/1200 variants matched; largest loss: missing",
+          "meaning": "The score computable from this genotype correlates too weakly with the published score."
+        },
+        "reason_codes": [
+          "LOW_SCOREABILITY",
+          "VARIANTS_MISSING",
+          "TARGET_REFERENCE_UNRESOLVED"
+        ],
+        "allowed_claims": {
+          "raw_score": false,
+          "standardized_score": false,
+          "percentile": false,
+          "absolute_risk": false
+        },
+        "evidence_used": {
+          "score_file.unsupported_features": [],
+          "score_file.ratio_weight_type": false,
+          "score_file.variants_interactions": 0,
+          "score_file.n_parse_problems": 0,
+          "genotype.build": "GRCh38",
+          "harmonisation.allele_mismatch_fraction": 0.0,
+          "scoreability.r": 0.41,
+          "harmonisation.weight_loss_by_status": {
+            "missing": 0.81,
+            "palindromic_excluded": 0.03
+          },
+          "person.sex": null,
+          "candidate.sex_specific": null,
+          "catalog_metadata.status": "resolved",
+          "placement.status": "UNRESOLVED",
+          "placement.placement": null,
+          "placement.n_sites_used": 150,
+          "placement.placement_stability": null
+        },
+        "evidence_missing": [],
+        "calibration_version": "2026.09.26-3",
+        "rule_trace": [
+          {
+            "rule": "G1",
+            "name": "INPUT_VALID",
+            "question": "Is the gate input well-formed and unmodified?",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [],
+            "detail": "schema v2",
+            "what_would_change": null
+          },
+          {
+            "rule": "G2",
+            "name": "SCORE_FORMAT",
+            "question": "Is the scoring file a plain additive score on a log scale?",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [],
+            "detail": "additive; weight_type 'beta'",
+            "what_would_change": null
+          },
+          {
+            "rule": "G3",
+            "name": "BUILD",
+            "question": "Is the genotype file's genome build established (never assumed)?",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [
+              "BUILD_UNRESOLVED"
+            ],
+            "detail": "build GRCh38; method empirical (rsID anchor positions) + declaration",
+            "what_would_change": null
+          },
+          {
+            "rule": "G4",
+            "name": "ALLELES",
+            "question": "Are located variants' alleles consistent with the scoring file?",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [
+              "ALLELE_HARMONIZATION_FAILED"
+            ],
+            "detail": "0.0% of 42 located variants unreconcilable (max 5%)",
+            "what_would_change": null
+          },
+          {
+            "rule": "G5",
+            "name": "SCOREABILITY",
+            "question": "Does the computable score represent the published score (r >= r_min)?",
+            "outcome": "fail",
+            "effect": "ABSTAIN",
+            "codes": [
+              "LOW_SCOREABILITY",
+              "VARIANTS_MISSING"
+            ],
+            "detail": "r = 0.410 (reference_panel_correlation); r_min 0.9; 41/1200 variants matched; largest loss: missing",
+            "what_would_change": "genotype data covering the score's heavily weighted variants so that r >= 0.9 (e.g. sequencing or imputation instead of a sparse array)"
+          },
+          {
+            "rule": "G6",
+            "name": "SEX_SCORE",
+            "question": "Is a sex-specific score applied to a person of that sex?",
+            "outcome": "not_applicable",
+            "effect": null,
+            "codes": [],
+            "detail": "score specificity none",
+            "what_would_change": null
+          },
+          {
+            "rule": "G7",
+            "name": "METADATA",
+            "question": "Is the PGS Catalog record resolved and internally consistent?",
+            "outcome": "pass",
+            "effect": null,
+            "codes": [],
+            "detail": "all blocking consistency checks passed",
+            "what_would_change": null
+          },
+          {
+            "rule": "G8",
+            "name": "PLACEMENT",
+            "question": "Is the person placed stably inside one reference group?",
+            "outcome": "fail",
+            "effect": "RAW_ONLY",
+            "codes": [
+              "TARGET_REFERENCE_UNRESOLVED"
+            ],
+            "detail": "UNRESOLVED: only 150 usable sites; placement needs at least 200",
+            "what_would_change": "a placement RESOLVED from at least 200 sites with stability >= 0.95, against a reference panel that represents this person's genetic background (e.g. admixed references with local-ancestry-aware scoring); not something the gate can relax"
+          },
+          {
+            "rule": "G9",
+            "name": "EVALUATION",
+            "question": "Is there evidence of association (95% CI above the null) in an evaluation of the person's group? (Association only: not clinically useful discrimination or calibration.)",
+            "outcome": "not_applicable",
+            "effect": null,
+            "codes": [],
+            "detail": "no resolved reference group to match evaluations against",
+            "what_would_change": null
+          },
+          {
+            "rule": "G10",
+            "name": "SEX_EVALUATION",
+            "question": "Do the informative evaluations include the person's sex?",
+            "outcome": "not_applicable",
+            "effect": null,
+            "codes": [],
+            "detail": "no resolved reference group",
+            "what_would_change": null
+          },
+          {
+            "rule": "G11",
+            "name": "REFERENCE_DISTRIBUTION",
+            "question": "Is there a reference distribution on the matched variants?",
+            "outcome": "not_applicable",
+            "effect": null,
+            "codes": [],
+            "detail": "no resolved reference group",
+            "what_would_change": null
+          },
+          {
+            "rule": "G12",
+            "name": "REFERENCE_SENSITIVITY",
+            "question": "Is the percentile robust to the reference population chosen?",
+            "outcome": "not_applicable",
+            "effect": null,
+            "codes": [],
+            "detail": "no resolved reference group",
+            "what_would_change": null
+          }
+        ],
+        "what_would_change_result": [
+          {
+            "rule": "G5",
+            "code": "LOW_SCOREABILITY",
+            "change": "genotype data covering the score's heavily weighted variants so that r >= 0.9 (e.g. sequencing or imputation instead of a sparse array)"
+          },
+          {
+            "rule": "G8",
+            "code": "TARGET_REFERENCE_UNRESOLVED",
+            "change": "a placement RESOLVED from at least 200 sites with stability >= 0.95, against a reference panel that represents this person's genetic background (e.g. admixed references with local-ancestry-aware scoring); not something the gate can relax"
+          }
+        ],
+        "provenance": {
+          "gate": "prs-applicability-gate",
+          "gate_version": "2.2.0",
+          "config_sha256": "sha256:727942cad27a64f1f2beec1a3298b354a739581e4124cda5d290b72714b76b7f",
+          "config_canonical": true,
+          "input_digest": "sha256:cb603c65e279854a506085e8bb64b047c9a583010fbba959be7605939732f1b7",
+          "deterministic": true
+        },
+        "disclaimer": "Research software, not a medical device. SUPPORTED is a research-prototype reportability state, not a clinical recommendation: it requires evidence of association in a relevant evaluation group, which is not evidence of clinically useful discrimination or calibration. A polygenic score is not a diagnosis, and this gate never converts a score into absolute risk. Genetic reference placement is not ethnicity or identity. ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions."
+      }
+    ]
+  },
+  "chat_summary_lines": [
+    "PGS_SYNTHETIC_A: SUPPORTED",
+    "PGS_SYNTHETIC_B: RAW_ONLY (TARGET_REFERENCE_UNRESOLVED)",
+    "PGS_SYNTHETIC_C: ABSTAIN (LOW_SCOREABILITY)"
+  ],
+  "disclaimer": "Research software, not a medical device. SUPPORTED is a research-prototype reportability state, not a clinical recommendation: it requires evidence of association in a relevant evaluation group, which is not evidence of clinically useful discrimination or calibration. A polygenic score is not a diagnosis, and this gate never converts a score into absolute risk. Genetic reference placement is not ethnicity or identity. ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions."
+}
+"""})
