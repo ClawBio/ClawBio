@@ -259,9 +259,11 @@ def detect_tests(skill_dir: Path) -> bool:
 
 
 # Extra inputs required by bundled synthetic demos. The South Asian fixture's
-# small AIM panel cannot support automatic ancestry inference.
+# small AIM panel cannot support automatic ancestry inference, and
+# turingdb-graph's --demo names the dataset it loads.
 DEMO_EXTRA_ARGS = {
     "ancestry-risk-profiler": ("--ancestry", "SAS"),
+    "turingdb-graph": ("cohort",),
 }
 
 

@@ -47,7 +47,7 @@ metadata:
   dependencies:
     python: '>=3.11'
     packages:
-    - turingdb>=1.29
+    - turingdb>=3.1,<4
     - pandas>=2.0
     - fastapi>=0.110
     - uvicorn>=0.27
@@ -61,7 +61,7 @@ metadata:
   - path: demo/antibody.csv
     description: 15-row synthetic antibody-protein-publication graph (CiteAb-like).
   endpoints:
-    cli: python skills/turingdb-graph/turingdb_graph.py --demo cohort --out {output_dir}
+    cli: python skills/turingdb-graph/turingdb_graph.py --demo cohort --output {output_dir}
     http: uvicorn http_server:app
   openclaw:
     requires:
@@ -149,11 +149,12 @@ You are **TuringDB Graph**, a specialised ClawBio agent for building, querying, 
 
 When the user asks to build and analyse a graph:
 
-1. **Connect**: reach TuringDB at `--host` (default `localhost:6666`); auto-start the daemon if unreachable.
+1. **Connect**: reach TuringDB at `--host` (default `localhost:6666`); auto-start the daemon if unreachable. `--demo` instead runs TuringDB's in-process engine on a temporary data directory, so it needs no server and leaves nothing behind.
 2. **Ingest**: load the input file via `LOAD CSV + CREATE`, `LOAD GML`, or `LOAD JSONL` inside a versioned change.
 3. **Commit**: submit the change and record the commit hash for audit.
 4. **Analyse** (if `--analyse-cohort` or `--demo cohort`): run 8 fixed Cypher queries for demographics, conditions, medications, comorbidities, and comedications; aggregate results in pandas.
 5. **Report**: write `report.md` + `summary.json` to the output directory. Every report ends with the ClawBio research disclaimer.
+6. **Reproducibility**: write `reproducibility/` (`commands.sh`, `environment.yml`, `checksums.sha256`) to the output directory with the shared `clawbio.common.reproducibility` helpers.
 
 ## CLI Reference
 
@@ -161,32 +162,32 @@ When the user asks to build and analyse a graph:
 > flags (`--build`, `--query`, `--analyse-cohort`, `--demo`, `--stop-server`)
 > rather than the standard `--input`/`--output` pattern. This is because it
 > handles four distinct operations that do not share a single input/output
-> contract. `--out` serves the role of `--output`.
+> contract. Every subcommand writes under `--output` (`--out` also works).
 
 ```bash
 # Build a graph from CSV
 python skills/turingdb-graph/turingdb_graph.py \
   --build --input data.csv --graph my_graph --node-label PatientRow \
-  --out /tmp/build-output
+  --output /tmp/build-output
 
 # Build from GML
 python skills/turingdb-graph/turingdb_graph.py \
-  --build --input pathway.gml --graph my_pathway --out /tmp/build-output
+  --build --input pathway.gml --graph my_pathway --output /tmp/build-output
 
 # Run a Cypher query
 python skills/turingdb-graph/turingdb_graph.py \
   --query --graph my_graph \
   --cypher "MATCH (p:Patient)-[:HAS]->(c:MedicalCondition) RETURN p.displayName, c.displayName LIMIT 10" \
-  --out /tmp/query-output
+  --output /tmp/query-output
 
 # Analyse a patient cohort
 python skills/turingdb-graph/turingdb_graph.py \
-  --analyse-cohort --graph my_graph --top-n 10 --out /tmp/analysis-output
+  --analyse-cohort --graph my_graph --top-n 10 --output /tmp/analysis-output
 
-# Run a demo (auto-starts TuringDB if needed)
-python skills/turingdb-graph/turingdb_graph.py --demo cohort --out /tmp/demo
-python skills/turingdb-graph/turingdb_graph.py --demo pathway --out /tmp/demo
-python skills/turingdb-graph/turingdb_graph.py --demo antibody --out /tmp/demo
+# Run a demo (in-process engine; no server needed)
+python skills/turingdb-graph/turingdb_graph.py --demo cohort --output /tmp/demo
+python skills/turingdb-graph/turingdb_graph.py --demo pathway --output /tmp/demo
+python skills/turingdb-graph/turingdb_graph.py --demo antibody --output /tmp/demo
 
 # Stop the TuringDB daemon
 python skills/turingdb-graph/turingdb_graph.py --stop-server
@@ -196,15 +197,15 @@ python skills/turingdb-graph/turingdb_graph.py --stop-server
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--host` | `http://localhost:6666` | TuringDB host URL |
-| `--data-dir` | `~/.turing` | TuringDB data directory |
+| `--host` | `localhost:6666` | TuringDB host and port (`http://localhost:6666` is also accepted) |
+| `--data-dir` | `~/.turing` | TuringDB data directory (ignored by `--demo`) |
 | `--no-auto-start` | off | Fail fast if the server is not running |
-| `--out` | `./output` | Output directory for reports |
+| `--output` (`--out`) | `./output` | Output directory for reports |
 
 ## Demo
 
 ```bash
-python skills/turingdb-graph/turingdb_graph.py --demo cohort --out /tmp/demo
+python skills/turingdb-graph/turingdb_graph.py --demo cohort --output /tmp/demo
 ```
 
 Expected output: a patient-centric graph with 50 nodes (20 patients, 6 conditions, 7 medications, 4 doctors, 3 hospitals, 8 blood types, 2 genders) and 120 edges, plus a cohort analysis report showing demographics (ages 14-73, mean 48.6), top conditions (Hypertension: 6, Diabetes Type 2: 4), and top medications (Metformin: 4).
@@ -254,9 +255,12 @@ output_directory/
 ├── summary.json           # Structured JSON (counts, stats, query metadata)
 ├── result.json            # Query results as JSON (--query only)
 ├── result.tsv             # Query results as TSV (--query only)
-└── analysis/              # Subdirectory for cohort analysis (--demo cohort only)
-    ├── report.md
-    └── summary.json
+├── demo-<dataset>/        # --demo only: the files above for that dataset,
+│   └── analysis/          #   plus the cohort analysis (--demo cohort only)
+└── reproducibility/
+    ├── commands.sh        # Replays the run into this directory
+    ├── environment.yml
+    └── checksums.sha256   # SHA-256 of every output, relative to this directory
 ```
 
 ## Algorithm / Methodology
@@ -283,7 +287,7 @@ TuringDB's `LOAD GML` stores properties with a type suffix: `displayName` become
 ## Dependencies
 
 **Required**:
-- `turingdb` >= 1.29; graph database engine (includes native daemon binary)
+- `turingdb` >= 3.1, < 4; graph database engine (client, in-process engine and daemon binary). Install with `uv sync --extra turingdb-graph`. turingdb publishes wheels only for Linux (glibc 2.35 or newer) and Apple Silicon macOS; the extra skips it on Windows and Intel Macs, where this skill cannot run
 - `pandas` >= 2.0; data manipulation and cohort aggregation
 - `tabulate` >= 0.9; `DataFrame.to_markdown()` rendering
 
@@ -299,7 +303,9 @@ TuringDB's `LOAD GML` stores properties with a type suffix: `displayName` become
 - **TuringDB's GROUP BY returns incorrect aggregations.** `RETURN key, count(x)` does not group correctly. Always return raw rows and aggregate in pandas with `groupby().nunique()`.
 - **`LOAD CSV + CREATE` does not deduplicate.** Each CSV row creates a new node unconditionally. TuringDB has no `MERGE`. Pre-dedupe in pandas if you need one-node-per-unique-value.
 - **Writes outside a change do not persist.** Always wrap `CREATE`/`SET` in `new_change()` ... `CHANGE SUBMIT`. This is the most common mistake when extending the skill.
-- **The daemon must match the Python package version.** If `turingdb` was upgraded but an old daemon is still running, `LOAD CSV + CREATE` and other v1.29 features will fail. Stop the old daemon first: `--stop-server`.
+- **The daemon must match the Python package version.** If `turingdb` was upgraded but an old daemon is still running, `LOAD CSV + CREATE` and other features will fail. Stop the old daemon first: `--stop-server`.
+- **One in-process engine per Python process.** A second `TuringDB(type="embedded", ...)` in the same process fails with "Could not initialize system event handler", so tests that run the demo start it in a subprocess.
+- **turingdb 3.x takes the host and port separately.** Its client rejects a URL such as `http://localhost:6666` as `host`; the skill splits `--host` into host and port before connecting, so both forms work on the command line.
 
 ## Safety
 
