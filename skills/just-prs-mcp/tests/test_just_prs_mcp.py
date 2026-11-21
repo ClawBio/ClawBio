@@ -444,11 +444,22 @@ def test_demo_writes_complete_output_contract(tmp_path: Path) -> None:
     assert "/my/custom/path/" not in commands
 
 
+def test_replay_script_does_not_record_the_checkout_path(tmp_path: Path) -> None:
+    """Bundles are shared; the generating machine's checkout path must not be in them."""
+    output_dir = tmp_path / "demo"
+    bridge.run_demo(output_dir)
+
+    commands = (output_dir / "reproducibility" / "commands.sh").read_text(encoding="utf-8")
+
+    assert str(bridge._PROJECT_ROOT) not in commands
+
+
 def test_replay_script_runs_outside_source_checkout(tmp_path: Path) -> None:
     output_dir = tmp_path / "demo"
     bridge.run_demo(output_dir)
     environment = dict(os.environ)
     environment.pop("VIRTUAL_ENV", None)
+    environment["CLAWBIO_ROOT"] = str(bridge._PROJECT_ROOT)
 
     completed = subprocess.run(
         [str(output_dir / "reproducibility" / "commands.sh")],
