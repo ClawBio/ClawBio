@@ -41,7 +41,7 @@ def with_output(argv: list[str], output: Path) -> list[str]:
 
 
 def _demo_command(name: str) -> str:
-    for skill in json.loads(CATALOG.read_text())["skills"]:
+    for skill in json.loads(CATALOG.read_text(encoding="utf-8"))["skills"]:
         if skill["name"] == name and skill.get("demo_command"):
             return skill["demo_command"]
     raise LookupError(f"{name} has no demo_command in {CATALOG.name}")
@@ -94,12 +94,15 @@ _NOT_SNAPSHOTTED_DIRS = {"reproducibility"}  # replay paths and checksums of tim
 _NOT_SNAPSHOTTED_SUFFIXES = {".log"}
 
 
-def demo_outputs(name: str, output_dir: Path, *, timeout: int = DEFAULT_TIMEOUT) -> dict[str, str]:
+def demo_outputs(name: str, output_dir: Path, *, timeout: int = DEFAULT_TIMEOUT,
+                 float_digits: int | None = None) -> dict[str, str]:
     """Run skill `name`'s catalog demo under output_dir and return {relative path: masked text} of its outputs.
 
     Covers every UTF-8 text file up to MAX_SNAPSHOT_BYTES, except reproducibility/
     and logs. Binary files (figures, PDFs, gzip) are left out: their bytes change
-    with library versions. Raises RuntimeError with the demo's stderr if it fails.
+    with library versions. With `float_digits`, decimals are rounded to that many
+    significant digits (see round_floats). Raises RuntimeError with the demo's
+    stderr if it fails.
     """
     # A fixed folder name: reports that echo `--output <name>` then read the same in every run.
     output_dir = Path(output_dir) / "demo_output"
@@ -116,8 +119,31 @@ def demo_outputs(name: str, output_dir: Path, *, timeout: int = DEFAULT_TIMEOUT)
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
-        outputs[rel.as_posix()] = mask(text, output_dir)
+        text = mask(text, output_dir)
+        outputs[rel.as_posix()] = round_floats(text, float_digits) if float_digits else text
     return outputs
+
+
+# A decimal written with a point, optionally in exponent form, that is not part
+# of a longer token such as a version (2.5.4), an IP or an identifier.
+_DECIMAL = re.compile(r"(?<![\w.])-?\d+\.\d+(?:[eE][-+]?\d+)?(?![\w.])")
+
+
+def round_floats(text: str, digits: int) -> str:
+    """Round every decimal in `text` written with more than `digits` significant
+    digits to `digits` of them; shorter numbers, integers and identifiers are kept.
+
+    For snapshots of computed outputs: a library upgrade can move a float in its
+    last bit (scipy 1.18 changed how moments are computed), which says nothing
+    about the analysis. Pinning the first `digits` digits keeps every real change.
+    """
+    def _round(m: re.Match) -> str:
+        mantissa = re.split(r"[eE]", m.group(0).lstrip("-"))[0]
+        if len(mantissa.replace(".", "").lstrip("0")) <= digits:
+            return m.group(0)
+        return format(float(m.group(0)), f".{digits}g")
+
+    return _DECIMAL.sub(_round, text)
 
 
 def mask(text: str, output_dir: Path) -> str:

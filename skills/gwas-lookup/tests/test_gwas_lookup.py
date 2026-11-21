@@ -255,6 +255,21 @@ def test_report_includes_gwas_table():
     assert "Lipoprotein" in report
 
 
+def test_report_labels_effect_estimates():
+    """Each effect in the GWAS table must say which measure it is reported in."""
+    from gwas_lookup_core.report import generate_markdown
+    from gwas_lookup_core.normalise import merge_all
+
+    demo = load_demo_data()
+    merged = merge_all(demo["api_results"])
+
+    report = generate_markdown(demo["variant"], merged)
+
+    assert "| OR/Beta |" not in report
+    assert "(OR)" in report
+    assert "fine-mapped" in report
+
+
 def test_write_tables(tmp_path):
     """CSV tables should be written to the output directory."""
     from gwas_lookup_core.report import write_tables
@@ -1254,19 +1269,21 @@ def test_demo_output_matches_snapshot(tmp_path):
 
 ## GWAS Associations (11 total, 11 genome-wide significant)
 
-| Trait | P-value | OR/Beta | Risk Allele | Source | Study |
-|-------|---------|---------|-------------|--------|-------|
-| Lipoprotein(a) levels ** | 1.00e-45 | 1.510 | rs3798220-C | gwas_catalog | GCST005140 |
-| Lipoprotein(a) levels ** | 1.00e-45 | 0.650 |  | open_targets | GCST005140 |
-| Coronary heart disease ** | 2.00e-38 | 1.920 | rs3798220-C | gwas_catalog | GCST003116 |
-| Coronary heart disease ** | 2.00e-38 | 0.310 |  | open_targets | GCST003116 |
-| Lipoprotein(a) measurement ** | 5.00e-22 | 0.840 | rs3798220-C | gwas_catalog | GCST90002370 |
-| Aortic valve stenosis ** | 3.00e-18 | 1.360 | rs3798220-C | gwas_catalog | GCST90038614 |
-| Aortic valve stenosis ** | 3.00e-18 | 0.220 |  | open_targets | GCST90038614 |
-| Peripheral artery disease ** | 8.00e-15 | 1.270 | rs3798220-C | gwas_catalog | GCST90018890 |
-| Ischemic stroke ** | 1.00e-12 | 1.220 | rs3798220-C | gwas_catalog | GCST006906 |
-| Heart failure ** | 4.00e-10 | 1.180 | rs3798220-C | gwas_catalog | GCST90043673 |
-| Venous thromboembolism ** | 2.00e-08 | 1.150 | rs3798220-C | gwas_catalog | GCST90018997 |
+| Trait | P-value | Effect (type) | Risk Allele | Source | Study |
+|-------|---------|---------------|-------------|--------|-------|
+| Lipoprotein(a) levels ** | 1.00e-45 | 1.510 (OR) | rs3798220-C | gwas_catalog | GCST005140 |
+| Lipoprotein(a) levels ** | 1.00e-45 | 0.650 (beta, fine-mapped) |  | open_targets | GCST005140 |
+| Coronary heart disease ** | 2.00e-38 | 1.920 (OR) | rs3798220-C | gwas_catalog | GCST003116 |
+| Coronary heart disease ** | 2.00e-38 | 0.310 (beta, fine-mapped) |  | open_targets | GCST003116 |
+| Lipoprotein(a) measurement ** | 5.00e-22 | 0.840 (beta) | rs3798220-C | gwas_catalog | GCST90002370 |
+| Aortic valve stenosis ** | 3.00e-18 | 1.360 (OR) | rs3798220-C | gwas_catalog | GCST90038614 |
+| Aortic valve stenosis ** | 3.00e-18 | 0.220 (beta, fine-mapped) |  | open_targets | GCST90038614 |
+| Peripheral artery disease ** | 8.00e-15 | 1.270 (OR) | rs3798220-C | gwas_catalog | GCST90018890 |
+| Ischemic stroke ** | 1.00e-12 | 1.220 (OR) | rs3798220-C | gwas_catalog | GCST006906 |
+| Heart failure ** | 4.00e-10 | 1.180 (OR) | rs3798220-C | gwas_catalog | GCST90043673 |
+| Venous thromboembolism ** | 2.00e-08 | 1.150 (OR) | rs3798220-C | gwas_catalog | GCST90018997 |
+
+*Open Targets rows are fine-mapped credible sets. Their beta is a posterior estimate for this variant, not a GWAS Catalog effect size, and the query does not request an effect allele.*
 
 ## PheWAS: UKB-TOPMed (5 phenotypes, 5 significant)
 

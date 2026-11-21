@@ -291,6 +291,8 @@ class MockAPIServer:
 
     def start(self):
         self.server = HTTPServer((self.host, self.port), MockAPIHandler)
+        # With port=0 the OS picks a free port; report the one actually bound.
+        self.port = self.server.server_address[1]
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
 

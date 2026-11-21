@@ -272,8 +272,11 @@ skills/nutrigx/
 ## Privacy
 
 All computation runs **locally**. No genetic data is transmitted. Input files are
-read-only; no raw genotype data appears in any output file (reports contain only
-gene names, SNP IDs, and risk categories).
+read-only.
+
+The outputs are not genotype-free: `nutrigx_report.md` prints a per-SNP genotype
+column and `result.json` stores the genotype call for every SNP alongside the risk
+scores. Treat both files as genetic data when you share them.
 
 ---
 

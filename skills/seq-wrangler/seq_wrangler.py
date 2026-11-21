@@ -21,10 +21,10 @@ from __future__ import annotations
 
 import argparse
 import csv
-import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import statistics
 import subprocess
@@ -32,6 +32,20 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.checksums import sha256_file  # noqa: E402
+from clawbio.common.reproducibility import (  # noqa: E402
+    ReproCommand,
+    ReproPath,
+    write_checksums,
+    write_environment_yml,
+    write_portable_commands_sh,
+)
+from clawbio.common.textio import write_text_lf_atomic  # noqa: E402
 
 
 # Constants
@@ -84,14 +98,6 @@ DEMO_SAMPLES = [
 
 
 # Utility
-
-def sha256_file(filepath: Path) -> str:
-    h = hashlib.sha256()
-    with open(filepath, "rb") as f:
-        for chunk in iter(lambda: f.read(8192), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
 
 def run_command(
     cmd: List[str],
@@ -608,87 +614,111 @@ def generate_report(
 
 # Step 7 — Reproducibility bundle
 
+PIPELINE_TOOLS = ["samtools", "bwa", "bowtie2", "minimap2", "fastqc", "fastp", "multiqc"]
+
+# A real run records the tool versions it replays with; the demo calls no tools.
+TOOL_PREFLIGHT = [
+    "# Tool versions",
+    "samtools --version | head -1 || true",
+    "bwa 2>&1 | head -1 || true",
+    "bowtie2 --version | head -1 || true",
+    "minimap2 --version | head -1 || true",
+    "fastqc --version || true",
+    "fastp --version || true",
+    "multiqc --version || true",
+]
+
+# Flags replayed when they differ from the parser default, in this order.
+_VALUE_OPTIONS = ["aligner", "genome_build", "mapq"]
+_SWITCHES = ["trim", "remove_duplicates", "run_fastqc", "run_multiqc", "keep_sam"]
+
+
+def _flag(name: str) -> str:
+    return "--" + name.replace("_", "-")
+
+
+def _quoted_path(value: str) -> str:
+    """A path for commands.sh: under $CLAWBIO_ROOT when inside the checkout, else absolute."""
+    path = Path(value).expanduser().resolve()
+    if path.is_relative_to(_PROJECT_ROOT):
+        return f'"$CLAWBIO_ROOT"/{shlex.quote(path.relative_to(_PROJECT_ROOT).as_posix())}'
+    return shlex.quote(str(path))
+
+
+def _replay_args(args: argparse.Namespace, output_dir: Path, is_demo: bool) -> list[str | ReproPath]:
+    defaults = build_parser()
+    replay: list[str | ReproPath] = ["--demo"] if is_demo else []
+    if not is_demo:
+        if args.samplesheet:
+            replay += ["--samplesheet", _quoted_path(args.samplesheet)]
+        else:
+            replay += ["--r1", _quoted_path(args.r1)]
+            if args.r2:
+                replay += ["--r2", _quoted_path(args.r2)]
+            if getattr(args, "sample_name", None):
+                replay += ["--sample-name", shlex.quote(args.sample_name)]
+        # An aligner index is a path prefix, not a file, so it is quoted as given.
+        replay += ["--index", shlex.quote(str(Path(args.index).expanduser().resolve()))]
+    for name in _VALUE_OPTIONS:
+        value = getattr(args, name)
+        # A real run always names its aligner; anything else only when not the default.
+        if (not is_demo and name == "aligner") or value != defaults.get_default(name):
+            replay += [_flag(name), shlex.quote(str(value))]
+    if not is_demo:  # thread count is per machine, but a real run replays with the same
+        replay += ["--threads", str(args.threads)]
+    for name in _SWITCHES:
+        if getattr(args, name, False):
+            replay.append(_flag(name))
+    return replay + ["--output", ReproPath(output_dir, anchor="output_dir")]
+
+
 def write_reproducibility_bundle(output_dir: Path, input_files: List[Path], args: argparse.Namespace, is_demo: bool) -> None:
+    """Write reproducibility/ with the shared helpers once every other output exists.
+
+    inputs.json holds the SHA-256 of each input FASTQ (and the samplesheet); the demo
+    has no input files. checksums.sha256 covers every output, relative to output_dir.
+    """
+    output_dir = Path(output_dir).resolve()
     repro_dir = output_dir / "reproducibility"
+    outputs = sorted(p for p in output_dir.rglob("*") if p.is_file() and repro_dir not in p.parents)
     repro_dir.mkdir(parents=True, exist_ok=True)
 
-    if is_demo:
-        cmd_line = f"python seq_wrangler.py --demo --output {args.output}"
-    else:
-        parts = ["python seq_wrangler.py"]
+    bundle = []
+    if not is_demo:
+        inputs: dict[str, object] = {}
         if args.samplesheet:
-            parts.append(f"--samplesheet {args.samplesheet}")
-        elif args.r1:
-            parts.append(f"--r1 {args.r1}")
-            if args.r2:
-                parts.append(f"--r2 {args.r2}")
-        parts.append(f"--index {args.index}")
-        parts.append(f"--aligner {args.aligner}")
-        parts.append(f"--genome-build {args.genome_build}")
-        parts.append(f"--output {args.output}")
-        parts.append(f"--threads {args.threads}")
-        parts.append(f"--mapq {args.mapq}")
-        if args.remove_duplicates:
-            parts.append("--remove-duplicates")
-        if args.trim:
-            parts.append("--trim")
-        if args.run_fastqc:
-            parts.append("--run-fastqc")
-        if args.keep_sam:
-            parts.append("--keep-sam")
-        if args.run_multiqc:
-            parts.append("--run-multiqc")
-        cmd_line = " \\\n    ".join(parts)
+            sheet = Path(args.samplesheet)
+            inputs["samplesheet"] = {"file": sheet.name, "sha256": sha256_file(sheet)}
+        inputs["files"] = [{"file": fp.name, "sha256": sha256_file(fp)}
+                           for fp in input_files if fp.is_file()]
+        inputs_path = repro_dir / "inputs.json"
+        write_text_lf_atomic(inputs_path, json.dumps(inputs, indent=2) + "\n")
+        bundle.append(inputs_path)
 
-    commands_sh = f"""#!/usr/bin/env bash
-set -euo pipefail
-
-# Generated: {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}
-samtools --version | head -1 || true
-bwa 2>&1 | head -1 || true
-bowtie2 --version | head -1 || true
-minimap2 --version | head -1 || true
-fastqc --version || true
-fastp --version || true
-multiqc --version || true
-
-{cmd_line}
-"""
-    cmd_path = repro_dir / "commands.sh"
-    cmd_path.write_text(commands_sh, encoding="utf-8")
-    cmd_path.chmod(0o755)
-
-    env_yml = """name: clawbio-seq-wrangler
-channels:
-  - bioconda
-  - conda-forge
-  - defaults
-dependencies:
-  - python>=3.10
-  - samtools
-  - bwa
-  - bowtie2
-  - minimap2
-  - fastqc
-  - fastp
-  - multiqc
-"""
-    (repro_dir / "environment.yml").write_text(env_yml, encoding="utf-8")
-
-    checksums_path = repro_dir / "checksums.sha256"
-    lines = []
-    for fp in input_files:
-        if fp.exists():
-            lines.append(f"{sha256_file(fp)}  {fp}")
-    checksums_path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
-
-    run_metadata = {
+    run_metadata = repro_dir / "run_metadata.json"
+    write_text_lf_atomic(run_metadata, json.dumps({
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "is_demo": is_demo,
         "args": vars(args),
         "n_input_files": len(input_files),
-    }
-    (repro_dir / "run_metadata.json").write_text(json.dumps(run_metadata, indent=2), encoding="utf-8")
+    }, indent=2) + "\n")
+    bundle.append(run_metadata)
+
+    bundle.append(write_portable_commands_sh(
+        output_dir,
+        ReproCommand(
+            script_path=Path("skills/seq-wrangler/seq_wrangler.py"),
+            args=_replay_args(args, output_dir, is_demo),
+            comment="Reproduce this Seq Wrangler run",
+            preflight=[] if is_demo else TOOL_PREFLIGHT,
+        ),
+        repo_root=_PROJECT_ROOT,
+    ))
+    bundle.append(write_environment_yml(
+        output_dir, env_name="clawbio-seq-wrangler", pip_deps=[],
+        conda_deps=PIPELINE_TOOLS, channels=["conda-forge", "bioconda"],
+    ))
+    write_checksums([*outputs, *bundle], output_dir, anchor=output_dir)
 
 
 

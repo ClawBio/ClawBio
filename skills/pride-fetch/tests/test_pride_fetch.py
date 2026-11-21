@@ -17,6 +17,8 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from inline_snapshot import snapshot
+from clawbio.common import demo_runner
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 SCRIPT = SKILL_DIR / "pride_fetch.py"
@@ -414,3 +416,211 @@ class TestOutputContract:
         assert not missing, (
             "SKILL.md Output Structure promises artifacts the skill did not "
             "produce: " + ", ".join(missing))
+
+
+# ── Demo output snapshot ──────────────────────────────────────────────────────
+# Fails when a code change alters any demo number. If the change is intended,
+# run `pytest skills/pride-fetch/tests --inline-snapshot=fix`; it rewrites the
+# snapshot() values below, and the PR diff shows which numbers moved.
+
+@pytest.mark.demo_snapshot
+def test_demo_output_matches_snapshot(tmp_path):
+    assert demo_runner.demo_outputs("pride-fetch", tmp_path) == snapshot({'PXD084218.sdrf.tsv': """\
+source name	characteristics[organism]	characteristics[organism part]	characteristics[disease]	characteristics[biological replicate]	assay name	technology type	comment[technical replicate]	comment[data file]	comment[file uri]	comment[fraction identifier]	comment[label]	comment[instrument]	comment[proteomics data acquisition method]	comment[cleavage agent details]	comment[modification parameters]	comment[precursor mass tolerance]	comment[fragment mass tolerance]	factor value[condition]
+Sample 1	Arabidopsis thaliana	not available	not available	1	run 1	proteomic profiling by mass spectrometry	1	E20260218-08.raw	https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-08.raw	1	label free sample	NT=Orbitrap Eclipse;AC=MS:1003029	not available	NT=Trypsin;AC=MS:1001251	NT=Carbamidomethyl;AC=UNIMOD:4;MT=Fixed;PP=Anywhere;TA=C	10 ppm	20 ppm	not available
+Sample 2	Arabidopsis thaliana	not available	not available	1	run 2	proteomic profiling by mass spectrometry	1	E20260218-16.raw	https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-16.raw	1	label free sample	NT=Orbitrap Eclipse;AC=MS:1003029	not available	NT=Trypsin;AC=MS:1001251	NT=Carbamidomethyl;AC=UNIMOD:4;MT=Fixed;PP=Anywhere;TA=C	10 ppm	20 ppm	not available
+Sample 3	Arabidopsis thaliana	not available	not available	1	run 3	proteomic profiling by mass spectrometry	1	E20260218-12.raw	https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-12.raw	1	label free sample	NT=Orbitrap Eclipse;AC=MS:1003029	not available	NT=Trypsin;AC=MS:1001251	NT=Carbamidomethyl;AC=UNIMOD:4;MT=Fixed;PP=Anywhere;TA=C	10 ppm	20 ppm	not available
+Sample 4	Arabidopsis thaliana	not available	not available	1	run 4	proteomic profiling by mass spectrometry	1	E20260218-07.raw	https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-07.raw	1	label free sample	NT=Orbitrap Eclipse;AC=MS:1003029	not available	NT=Trypsin;AC=MS:1001251	NT=Carbamidomethyl;AC=UNIMOD:4;MT=Fixed;PP=Anywhere;TA=C	10 ppm	20 ppm	not available
+Sample 5	Arabidopsis thaliana	not available	not available	1	run 5	proteomic profiling by mass spectrometry	1	E20260218-04.raw	https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-04.raw	1	label free sample	NT=Orbitrap Eclipse;AC=MS:1003029	not available	NT=Trypsin;AC=MS:1001251	NT=Carbamidomethyl;AC=UNIMOD:4;MT=Fixed;PP=Anywhere;TA=C	10 ppm	20 ppm	not available
+Sample 6	Arabidopsis thaliana	not available	not available	1	run 6	proteomic profiling by mass spectrometry	1	E20260218-11.raw	https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-11.raw	1	label free sample	NT=Orbitrap Eclipse;AC=MS:1003029	not available	NT=Trypsin;AC=MS:1001251	NT=Carbamidomethyl;AC=UNIMOD:4;MT=Fixed;PP=Anywhere;TA=C	10 ppm	20 ppm	not available
+Sample 7	Arabidopsis thaliana	not available	not available	1	run 7	proteomic profiling by mass spectrometry	1	E20260218-03.raw	https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-03.raw	1	label free sample	NT=Orbitrap Eclipse;AC=MS:1003029	not available	NT=Trypsin;AC=MS:1001251	NT=Carbamidomethyl;AC=UNIMOD:4;MT=Fixed;PP=Anywhere;TA=C	10 ppm	20 ppm	not available
+Sample 8	Arabidopsis thaliana	not available	not available	1	run 8	proteomic profiling by mass spectrometry	1	E20260218-02.raw	https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-02.raw	1	label free sample	NT=Orbitrap Eclipse;AC=MS:1003029	not available	NT=Trypsin;AC=MS:1001251	NT=Carbamidomethyl;AC=UNIMOD:4;MT=Fixed;PP=Anywhere;TA=C	10 ppm	20 ppm	not available
+Sample 9	Arabidopsis thaliana	not available	not available	1	run 9	proteomic profiling by mass spectrometry	1	E20260218-06.raw	https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-06.raw	1	label free sample	NT=Orbitrap Eclipse;AC=MS:1003029	not available	NT=Trypsin;AC=MS:1001251	NT=Carbamidomethyl;AC=UNIMOD:4;MT=Fixed;PP=Anywhere;TA=C	10 ppm	20 ppm	not available
+Sample 10	Arabidopsis thaliana	not available	not available	1	run 10	proteomic profiling by mass spectrometry	1	E20260218-10.raw	https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-10.raw	1	label free sample	NT=Orbitrap Eclipse;AC=MS:1003029	not available	NT=Trypsin;AC=MS:1001251	NT=Carbamidomethyl;AC=UNIMOD:4;MT=Fixed;PP=Anywhere;TA=C	10 ppm	20 ppm	not available
+Sample 11	Arabidopsis thaliana	not available	not available	1	run 11	proteomic profiling by mass spectrometry	1	E20260218-14.raw	https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-14.raw	1	label free sample	NT=Orbitrap Eclipse;AC=MS:1003029	not available	NT=Trypsin;AC=MS:1001251	NT=Carbamidomethyl;AC=UNIMOD:4;MT=Fixed;PP=Anywhere;TA=C	10 ppm	20 ppm	not available
+Sample 12	Arabidopsis thaliana	not available	not available	1	run 12	proteomic profiling by mass spectrometry	1	E20260218-15.raw	https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-15.raw	1	label free sample	NT=Orbitrap Eclipse;AC=MS:1003029	not available	NT=Trypsin;AC=MS:1001251	NT=Carbamidomethyl;AC=UNIMOD:4;MT=Fixed;PP=Anywhere;TA=C	10 ppm	20 ppm	not available
+""", 'download_pride.sh': """\
+#!/bin/bash
+#
+#SBATCH --job-name=pride_download
+# #SBATCH --partition=<your_partition>   # set for your cluster
+# #SBATCH --account=<your_account>        # set if required
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --time=24:00:00
+#SBATCH --output=slurm-%j.out
+#SBATCH --error=slurm-%j.err
+# #SBATCH --mail-type=END,FAIL
+# #SBATCH --mail-user=<you@example.org>
+
+set -euo pipefail
+
+OUTDIR=pride_data
+mkdir -p "$OUTDIR"
+
+# curl >= 7.71 retries HTTP errors (403/429/503) too, not just network
+# failures. Older curl rejects the flag outright, so probe before using it.
+RETRY_ALL=""
+if curl --help all 2>/dev/null | grep -q -- --retry-all-errors; then
+  RETRY_ALL="--retry-all-errors"
+fi
+
+# RAW: E20260218-08.raw
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/E20260218-08.raw https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-08.raw
+
+# OTHER: sample_description.txt
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/sample_description.txt https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/sample_description.txt
+
+# SEARCH: Shoot_combined_modified_peptide.tsv
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/Shoot_combined_modified_peptide.tsv https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/Shoot_combined_modified_peptide.tsv
+
+# SEARCH: Root_combined_modified_peptide.tsv
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/Root_combined_modified_peptide.tsv https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/Root_combined_modified_peptide.tsv
+
+# SEARCH: Shoot_combined_protein.tsv
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/Shoot_combined_protein.tsv https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/Shoot_combined_protein.tsv
+
+# RAW: E20260218-16.raw
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/E20260218-16.raw https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-16.raw
+
+# RAW: E20260218-12.raw
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/E20260218-12.raw https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-12.raw
+
+# RAW: E20260218-07.raw
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/E20260218-07.raw https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-07.raw
+
+# RAW: E20260218-04.raw
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/E20260218-04.raw https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-04.raw
+
+# SEARCH: Root_WT_vs_VZ312_combined_protein.csv
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/Root_WT_vs_VZ312_combined_protein.csv https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/Root_WT_vs_VZ312_combined_protein.csv
+
+# RAW: E20260218-11.raw
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/E20260218-11.raw https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-11.raw
+
+# RAW: E20260218-03.raw
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/E20260218-03.raw https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-03.raw
+
+# RAW: E20260218-02.raw
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/E20260218-02.raw https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-02.raw
+
+# RAW: E20260218-06.raw
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/E20260218-06.raw https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-06.raw
+
+# RAW: E20260218-10.raw
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/E20260218-10.raw https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-10.raw
+
+# SEARCH: Root_combined_protein.tsv
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/Root_combined_protein.tsv https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/Root_combined_protein.tsv
+
+# RAW: E20260218-14.raw
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/E20260218-14.raw https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-14.raw
+
+# RAW: E20260218-15.raw
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/E20260218-15.raw https://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-15.raw
+
+echo "Downloaded 18 file(s) to $OUTDIR"
+""", 'report.md': """\
+# PRIDE report — PXD084218
+
+Source: [PRIDE Archive](https://www.ebi.ac.uk/pride/archive/projects/PXD084218)
+
+## metadata
+
+```
+accession   : PXD084218
+title       : Genetic code expansion enables plant-directed control of bacterial activity
+submitted   : 2026-09-15   published: 2026-09-16
+type        : PARTIAL
+organisms   : Arabidopsis thaliana (mouse-ear cress)
+instruments : Orbitrap Eclipse
+diseases    : \n\
+keywords    : Bioengineering, Non-canonical amino acids, Bacillus subtilis, Plant-microbe interactions, O-methyl-l-tyrosine (omy)
+
+description : Microbes have the potential to provide growth-promoting benefits to plants and crops, but effective plant–microbe partnerships require mechanisms to control microbial activity in a programmable and host-specific manner. Using O-methyl-L-tyrosine (OMY), a non-canonical amino acid (ncAA), as a model compound, we established a plant-based approach for controlling the activity of associated microbes. Arabidopsis thaliana plants engineered to produce OMY (proUBQ10::sfGFP-MfnG) exhibited reduced primary root length, decreased lateral root density, and impaired gravitropism compared with wild-type Col-0 plants. To investigate the basis of OMY-associated growth inhibition, we tested whether OMY phytotoxicity results from its misincorporation into endogenous proteins, a mechanism reported for other ncAAs. Specifically, we examined whether OMY-producing Arabidopsis plants accumulate O-methylated L-tyrosine residues in native proteins. Proteomic analysis was performed using shoot and root tissues from OMY-producing proUBQ10::sfGFP-MfnG plants and wild-type controls. The resulting proteomic data were analyzed to identify peptides containing O-methylated L-tyrosine residues and to determine whether their abundance was increased in OMY-producing plants relative to wild-type controls.
+```
+
+## files
+
+```
+18 file(s) for PXD084218:
+
+E20260218-08.raw	[RAW]	ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-08.raw
+sample_description.txt	[OTHER]	ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/sample_description.txt
+Shoot_combined_modified_peptide.tsv	[SEARCH]	ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/Shoot_combined_modified_peptide.tsv
+Root_combined_modified_peptide.tsv	[SEARCH]	ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/Root_combined_modified_peptide.tsv
+Shoot_combined_protein.tsv	[SEARCH]	ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/Shoot_combined_protein.tsv
+E20260218-16.raw	[RAW]	ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-16.raw
+E20260218-12.raw	[RAW]	ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-12.raw
+E20260218-07.raw	[RAW]	ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-07.raw
+E20260218-04.raw	[RAW]	ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-04.raw
+Root_WT_vs_VZ312_combined_protein.csv	[SEARCH]	ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/Root_WT_vs_VZ312_combined_protein.csv
+E20260218-11.raw	[RAW]	ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-11.raw
+E20260218-03.raw	[RAW]	ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-03.raw
+E20260218-02.raw	[RAW]	ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-02.raw
+E20260218-06.raw	[RAW]	ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-06.raw
+E20260218-10.raw	[RAW]	ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-10.raw
+Root_combined_protein.tsv	[SEARCH]	ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/Root_combined_protein.tsv
+E20260218-14.raw	[RAW]	ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-14.raw
+E20260218-15.raw	[RAW]	ftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-15.raw
+```
+
+## metadata-table
+
+```
+Wrote 1 row(s) x 10 column(s) for PXD084218 from project metadata (no SDRF) to <output>/tables/metadata.tsv
+```
+
+## samplesheet
+
+```
+No submitter SDRF in PRIDE; generating a minimal SDRF from data files + metadata.
+Generated minimal SDRF for 12 run(s) -> <output>/PXD084218.sdrf.tsv
+Minimal SDRF columns present: 19/19.
+Review placeholder values (acquisition method, disease, instrument, tolerances, enzyme, modifications, organism part, factor value) before running quantms.
+```
+
+## download-script
+
+```
+Wrote <output>/download_pride.sh: 18 download command(s) using curl.
+Submit with: sbatch <output>/download_pride.sh   (or run directly: ./<output>/download_pride.sh)
+```
+
+---
+
+*ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.*
+""", 'result.json': """\
+{
+  "status": "ok",
+  "ok": true,
+  "skill": "pride-fetch",
+  "version": "0.1.0",
+  "completed_at": "<TIMESTAMP>",
+  "input_checksum": "",
+  "datasets": {},
+  "summary": {
+    "accession": "PXD084218",
+    "commands": [
+      "metadata",
+      "files",
+      "metadata-table",
+      "samplesheet",
+      "download-script"
+    ],
+    "demo": true
+  },
+  "data": {
+    "sections": {
+      "metadata": "accession   : PXD084218\\ntitle       : Genetic code expansion enables plant-directed control of bacterial activity\\nsubmitted   : 2026-09-15   published: 2026-09-16\\ntype        : PARTIAL\\norganisms   : Arabidopsis thaliana (mouse-ear cress)\\ninstruments : Orbitrap Eclipse\\ndiseases    : \\nkeywords    : Bioengineering, Non-canonical amino acids, Bacillus subtilis, Plant-microbe interactions, O-methyl-l-tyrosine (omy)\\n\\ndescription : Microbes have the potential to provide growth-promoting benefits to plants and crops, but effective plant\\u2013microbe partnerships require mechanisms to control microbial activity in a programmable and host-specific manner. Using O-methyl-L-tyrosine (OMY), a non-canonical amino acid (ncAA), as a model compound, we established a plant-based approach for controlling the activity of associated microbes. Arabidopsis thaliana plants engineered to produce OMY (proUBQ10::sfGFP-MfnG) exhibited reduced primary root length, decreased lateral root density, and impaired gravitropism compared with wild-type Col-0 plants. To investigate the basis of OMY-associated growth inhibition, we tested whether OMY phytotoxicity results from its misincorporation into endogenous proteins, a mechanism reported for other ncAAs. Specifically, we examined whether OMY-producing Arabidopsis plants accumulate O-methylated L-tyrosine residues in native proteins. Proteomic analysis was performed using shoot and root tissues from OMY-producing proUBQ10::sfGFP-MfnG plants and wild-type controls. The resulting proteomic data were analyzed to identify peptides containing O-methylated L-tyrosine residues and to determine whether their abundance was increased in OMY-producing plants relative to wild-type controls.\\n",
+      "files": "18 file(s) for PXD084218:\\n\\nE20260218-08.raw\\t[RAW]\\tftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-08.raw\\nsample_description.txt\\t[OTHER]\\tftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/sample_description.txt\\nShoot_combined_modified_peptide.tsv\\t[SEARCH]\\tftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/Shoot_combined_modified_peptide.tsv\\nRoot_combined_modified_peptide.tsv\\t[SEARCH]\\tftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/Root_combined_modified_peptide.tsv\\nShoot_combined_protein.tsv\\t[SEARCH]\\tftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/Shoot_combined_protein.tsv\\nE20260218-16.raw\\t[RAW]\\tftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-16.raw\\nE20260218-12.raw\\t[RAW]\\tftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-12.raw\\nE20260218-07.raw\\t[RAW]\\tftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-07.raw\\nE20260218-04.raw\\t[RAW]\\tftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-04.raw\\nRoot_WT_vs_VZ312_combined_protein.csv\\t[SEARCH]\\tftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/Root_WT_vs_VZ312_combined_protein.csv\\nE20260218-11.raw\\t[RAW]\\tftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-11.raw\\nE20260218-03.raw\\t[RAW]\\tftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-03.raw\\nE20260218-02.raw\\t[RAW]\\tftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-02.raw\\nE20260218-06.raw\\t[RAW]\\tftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-06.raw\\nE20260218-10.raw\\t[RAW]\\tftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-10.raw\\nRoot_combined_protein.tsv\\t[SEARCH]\\tftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/Root_combined_protein.tsv\\nE20260218-14.raw\\t[RAW]\\tftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-14.raw\\nE20260218-15.raw\\t[RAW]\\tftp://ftp.pride.ebi.ac.uk/pride/data/archive/2026/09/PXD084218/E20260218-15.raw\\n",
+      "metadata-table": "Wrote 1 row(s) x 10 column(s) for PXD084218 from project metadata (no SDRF) to <output>/tables/metadata.tsv\\n",
+      "samplesheet": "No submitter SDRF in PRIDE; generating a minimal SDRF from data files + metadata.\\nGenerated minimal SDRF for 12 run(s) -> <output>/PXD084218.sdrf.tsv\\nMinimal SDRF columns present: 19/19.\\nReview placeholder values (acquisition method, disease, instrument, tolerances, enzyme, modifications, organism part, factor value) before running quantms.\\n",
+      "download-script": "Wrote <output>/download_pride.sh: 18 download command(s) using curl.\\nSubmit with: sbatch <output>/download_pride.sh   (or run directly: ./<output>/download_pride.sh)\\n"
+    }
+  }
+}\
+""", 'tables/metadata.tsv': """\
+sample	replicate	species	sex	age	condition	genotype	treatment	tissue	instrument
+PXD084218	1	Arabidopsis thaliana	NA	NA	NA	NA	NA	NA	Orbitrap Eclipse
+"""})

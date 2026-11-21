@@ -15,6 +15,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from inline_snapshot import snapshot
+from clawbio.common import demo_runner
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 SCRIPT = SKILL_DIR / "ena_fetch.py"
@@ -428,3 +430,238 @@ class TestDownloadSizePreflight:
 
         line = app._download_preflight_line("PRJEB1", [{"fastq_bytes": ""}], "fastq_bytes")
         assert "PRJEB1" in line
+
+
+# ── Demo output snapshot ──────────────────────────────────────────────────────
+# Fails when a code change alters any demo number. If the change is intended,
+# run `pytest skills/ena-fetch/tests --inline-snapshot=fix`; it rewrites the
+# snapshot() values below, and the PR diff shows which numbers moved.
+
+@pytest.mark.demo_snapshot
+def test_demo_output_matches_snapshot(tmp_path):
+    assert demo_runner.demo_outputs("ena-fetch", tmp_path) == snapshot({'download_ena.sh': """\
+#!/bin/bash
+#
+#SBATCH --job-name=fastq_download
+# #SBATCH --partition=<your_partition>   # set for your cluster
+# #SBATCH --account=<your_account>        # set if required
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --time=24:00:00
+#SBATCH --output=slurm-%j.out
+#SBATCH --error=slurm-%j.err
+# #SBATCH --mail-type=END,FAIL
+# #SBATCH --mail-user=<you@example.org>
+
+set -euo pipefail
+
+OUTDIR=fastq
+mkdir -p "$OUTDIR"
+
+# curl >= 7.71 retries HTTP errors (403/429/503) too, not just network
+# failures. Older curl rejects the flag outright, so probe before using it.
+RETRY_ALL=""
+if curl --help all 2>/dev/null | grep -q -- --retry-all-errors; then
+  RETRY_ALL="--retry-all-errors"
+fi
+
+# Verify each file against the archive's published MD5 once it is complete.
+if command -v md5sum >/dev/null 2>&1; then
+  verify_md5() {
+    printf '%s  %s\\n' "$1" "$2" | md5sum -c --quiet - >/dev/null 2>&1 || {
+      echo "MD5 mismatch for $2: the file is truncated or corrupt; delete it and re-run this script" >&2
+      exit 1
+    }
+  }
+else
+  echo "warning: md5sum not found; downloaded files will not be checksum-verified" >&2
+  verify_md5() { :; }
+fi
+
+# sample: SAMEA111350648
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/ERR10181253_1.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/053/ERR10181253/ERR10181253_1.fastq.gz
+verify_md5 05c0b37299a258859f92125a3ebae46c "$OUTDIR"/ERR10181253_1.fastq.gz
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/ERR10181253_2.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/053/ERR10181253/ERR10181253_2.fastq.gz
+verify_md5 bbce0154ef5b7383084f5a655ff1fd4e "$OUTDIR"/ERR10181253_2.fastq.gz
+
+# sample: SAMEA111350649
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/ERR10181254_1.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/054/ERR10181254/ERR10181254_1.fastq.gz
+verify_md5 735252236e07db9324a1a95112b237e9 "$OUTDIR"/ERR10181254_1.fastq.gz
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/ERR10181254_2.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/054/ERR10181254/ERR10181254_2.fastq.gz
+verify_md5 b3c6d69a99c420b3385970bf82af1fde "$OUTDIR"/ERR10181254_2.fastq.gz
+
+# sample: SAMEA111350650
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/ERR10181255_1.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/055/ERR10181255/ERR10181255_1.fastq.gz
+verify_md5 b3aaa03bd95d9bf30e402cf7676de05c "$OUTDIR"/ERR10181255_1.fastq.gz
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/ERR10181255_2.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/055/ERR10181255/ERR10181255_2.fastq.gz
+verify_md5 600badb9d653bbbf22d37a063a162c1a "$OUTDIR"/ERR10181255_2.fastq.gz
+
+# sample: SAMEA111350651
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/ERR10181256_1.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/056/ERR10181256/ERR10181256_1.fastq.gz
+verify_md5 3a943f1a72d629549765b706badfbddd "$OUTDIR"/ERR10181256_1.fastq.gz
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/ERR10181256_2.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/056/ERR10181256/ERR10181256_2.fastq.gz
+verify_md5 c85db1d41ff3f4c177337a54157f423f "$OUTDIR"/ERR10181256_2.fastq.gz
+
+# sample: SAMEA111350652
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/ERR10181257_1.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/057/ERR10181257/ERR10181257_1.fastq.gz
+verify_md5 2019258c721b9e43a1a5e5001f0a4225 "$OUTDIR"/ERR10181257_1.fastq.gz
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/ERR10181257_2.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/057/ERR10181257/ERR10181257_2.fastq.gz
+verify_md5 e0ae1ece62a52b91ed60173b40ce73d1 "$OUTDIR"/ERR10181257_2.fastq.gz
+
+# sample: SAMEA111350653
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/ERR10181258_1.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/058/ERR10181258/ERR10181258_1.fastq.gz
+verify_md5 0fe6528436891dd0eb58849b9fdd0dd6 "$OUTDIR"/ERR10181258_1.fastq.gz
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/ERR10181258_2.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/058/ERR10181258/ERR10181258_2.fastq.gz
+verify_md5 37203ab5cc66cb158a840c0c8561ef0c "$OUTDIR"/ERR10181258_2.fastq.gz
+
+# sample: SAMEA111350654
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/ERR10181259_1.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/059/ERR10181259/ERR10181259_1.fastq.gz
+verify_md5 836b83c7e84cf6280b2c5e6bfb6f8f04 "$OUTDIR"/ERR10181259_1.fastq.gz
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/ERR10181259_2.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/059/ERR10181259/ERR10181259_2.fastq.gz
+verify_md5 f8c93bd7126006a9faec7cccb4207bf5 "$OUTDIR"/ERR10181259_2.fastq.gz
+
+# sample: SAMEA111350655
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/ERR10181260_1.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/060/ERR10181260/ERR10181260_1.fastq.gz
+verify_md5 901030c63eb4d97a878eed8f66e1eb0f "$OUTDIR"/ERR10181260_1.fastq.gz
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/ERR10181260_2.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/060/ERR10181260/ERR10181260_2.fastq.gz
+verify_md5 31f1b6e7f02f8c08cbf21f8fa9d2e2af "$OUTDIR"/ERR10181260_2.fastq.gz
+
+# sample: SAMEA111350656
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/ERR10181261_1.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/061/ERR10181261/ERR10181261_1.fastq.gz
+verify_md5 68a498e2f53c8ca789ddc1558c80a23c "$OUTDIR"/ERR10181261_1.fastq.gz
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/ERR10181261_2.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/061/ERR10181261/ERR10181261_2.fastq.gz
+verify_md5 703f962baf6008d54a2c72879c0d7883 "$OUTDIR"/ERR10181261_2.fastq.gz
+
+echo "Downloaded 18 file(s) to $OUTDIR"
+""", 'fastq_md5.tsv': """\
+url	md5
+https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/054/ERR10181254/ERR10181254_1.fastq.gz	735252236e07db9324a1a95112b237e9
+https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/054/ERR10181254/ERR10181254_2.fastq.gz	b3c6d69a99c420b3385970bf82af1fde
+https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/060/ERR10181260/ERR10181260_1.fastq.gz	901030c63eb4d97a878eed8f66e1eb0f
+https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/060/ERR10181260/ERR10181260_2.fastq.gz	31f1b6e7f02f8c08cbf21f8fa9d2e2af
+https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/053/ERR10181253/ERR10181253_1.fastq.gz	05c0b37299a258859f92125a3ebae46c
+https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/053/ERR10181253/ERR10181253_2.fastq.gz	bbce0154ef5b7383084f5a655ff1fd4e
+https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/059/ERR10181259/ERR10181259_1.fastq.gz	836b83c7e84cf6280b2c5e6bfb6f8f04
+https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/059/ERR10181259/ERR10181259_2.fastq.gz	f8c93bd7126006a9faec7cccb4207bf5
+https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/061/ERR10181261/ERR10181261_1.fastq.gz	68a498e2f53c8ca789ddc1558c80a23c
+https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/061/ERR10181261/ERR10181261_2.fastq.gz	703f962baf6008d54a2c72879c0d7883
+https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/056/ERR10181256/ERR10181256_1.fastq.gz	3a943f1a72d629549765b706badfbddd
+https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/056/ERR10181256/ERR10181256_2.fastq.gz	c85db1d41ff3f4c177337a54157f423f
+https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/057/ERR10181257/ERR10181257_1.fastq.gz	2019258c721b9e43a1a5e5001f0a4225
+https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/057/ERR10181257/ERR10181257_2.fastq.gz	e0ae1ece62a52b91ed60173b40ce73d1
+https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/055/ERR10181255/ERR10181255_1.fastq.gz	b3aaa03bd95d9bf30e402cf7676de05c
+https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/055/ERR10181255/ERR10181255_2.fastq.gz	600badb9d653bbbf22d37a063a162c1a
+https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/058/ERR10181258/ERR10181258_1.fastq.gz	0fe6528436891dd0eb58849b9fdd0dd6
+https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/058/ERR10181258/ERR10181258_2.fastq.gz	37203ab5cc66cb158a840c0c8561ef0c
+""", 'report.md': """\
+# ENA report — PRJEB56029
+
+Source: [European Nucleotide Archive](https://www.ebi.ac.uk/ena/browser/view/PRJEB56029)
+
+## runs
+
+```
+9 run(s) for PRJEB56029:
+
+ERR10181254    ILLUMINA     RNA-Seq      reads=39994488
+    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/054/ERR10181254/ERR10181254_1.fastq.gz
+    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/054/ERR10181254/ERR10181254_2.fastq.gz
+ERR10181260    ILLUMINA     RNA-Seq      reads=45764926
+    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/060/ERR10181260/ERR10181260_1.fastq.gz
+    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/060/ERR10181260/ERR10181260_2.fastq.gz
+ERR10181253    ILLUMINA     RNA-Seq      reads=40842088
+    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/053/ERR10181253/ERR10181253_1.fastq.gz
+    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/053/ERR10181253/ERR10181253_2.fastq.gz
+ERR10181259    ILLUMINA     RNA-Seq      reads=46792448
+    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/059/ERR10181259/ERR10181259_1.fastq.gz
+    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/059/ERR10181259/ERR10181259_2.fastq.gz
+ERR10181261    ILLUMINA     RNA-Seq      reads=47009856
+    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/061/ERR10181261/ERR10181261_1.fastq.gz
+    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/061/ERR10181261/ERR10181261_2.fastq.gz
+ERR10181256    ILLUMINA     RNA-Seq      reads=39414064
+    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/056/ERR10181256/ERR10181256_1.fastq.gz
+    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/056/ERR10181256/ERR10181256_2.fastq.gz
+ERR10181257    ILLUMINA     RNA-Seq      reads=45247648
+    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/057/ERR10181257/ERR10181257_1.fastq.gz
+    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/057/ERR10181257/ERR10181257_2.fastq.gz
+ERR10181255    ILLUMINA     RNA-Seq      reads=47474894
+    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/055/ERR10181255/ERR10181255_1.fastq.gz
+    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/055/ERR10181255/ERR10181255_2.fastq.gz
+ERR10181258    ILLUMINA     RNA-Seq      reads=51635774
+    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/058/ERR10181258/ERR10181258_1.fastq.gz
+    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/058/ERR10181258/ERR10181258_2.fastq.gz
+```
+
+## metadata-table
+
+```
+Wrote 9 sample x replicate row(s) x 11 column(s) for PRJEB56029 to <output>/tables/metadata.tsv
+```
+
+## samplesheet
+
+```
+Wrote 9 row(s) for 9 sample(s) to <output>/samplesheet.csv (nf-core/rnaseq)
+```
+
+## download-script
+
+```
+Wrote download_ena.sh: 18 download command(s) using curl.
+Nothing has been downloaded. Run it yourself with `bash download_ena.sh`, or submit it with `sbatch download_ena.sh`.
+```
+
+---
+
+*ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.*
+""", 'result.json': """\
+{
+  "status": "ok",
+  "ok": true,
+  "skill": "ena-fetch",
+  "version": "0.1.0",
+  "completed_at": "<TIMESTAMP>",
+  "input_checksum": "",
+  "datasets": {},
+  "summary": {
+    "accession": "PRJEB56029",
+    "commands": [
+      "runs",
+      "metadata-table",
+      "samplesheet",
+      "download-script"
+    ],
+    "demo": true
+  },
+  "data": {
+    "sections": {
+      "runs": "9 run(s) for PRJEB56029:\\n\\nERR10181254    ILLUMINA     RNA-Seq      reads=39994488\\n    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/054/ERR10181254/ERR10181254_1.fastq.gz\\n    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/054/ERR10181254/ERR10181254_2.fastq.gz\\nERR10181260    ILLUMINA     RNA-Seq      reads=45764926\\n    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/060/ERR10181260/ERR10181260_1.fastq.gz\\n    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/060/ERR10181260/ERR10181260_2.fastq.gz\\nERR10181253    ILLUMINA     RNA-Seq      reads=40842088\\n    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/053/ERR10181253/ERR10181253_1.fastq.gz\\n    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/053/ERR10181253/ERR10181253_2.fastq.gz\\nERR10181259    ILLUMINA     RNA-Seq      reads=46792448\\n    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/059/ERR10181259/ERR10181259_1.fastq.gz\\n    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/059/ERR10181259/ERR10181259_2.fastq.gz\\nERR10181261    ILLUMINA     RNA-Seq      reads=47009856\\n    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/061/ERR10181261/ERR10181261_1.fastq.gz\\n    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/061/ERR10181261/ERR10181261_2.fastq.gz\\nERR10181256    ILLUMINA     RNA-Seq      reads=39414064\\n    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/056/ERR10181256/ERR10181256_1.fastq.gz\\n    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/056/ERR10181256/ERR10181256_2.fastq.gz\\nERR10181257    ILLUMINA     RNA-Seq      reads=45247648\\n    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/057/ERR10181257/ERR10181257_1.fastq.gz\\n    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/057/ERR10181257/ERR10181257_2.fastq.gz\\nERR10181255    ILLUMINA     RNA-Seq      reads=47474894\\n    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/055/ERR10181255/ERR10181255_1.fastq.gz\\n    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/055/ERR10181255/ERR10181255_2.fastq.gz\\nERR10181258    ILLUMINA     RNA-Seq      reads=51635774\\n    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/058/ERR10181258/ERR10181258_1.fastq.gz\\n    ftp: ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/058/ERR10181258/ERR10181258_2.fastq.gz\\n",
+      "metadata-table": "Wrote 9 sample x replicate row(s) x 11 column(s) for PRJEB56029 to <output>/tables/metadata.tsv\\n",
+      "samplesheet": "Wrote 9 row(s) for 9 sample(s) to <output>/samplesheet.csv (nf-core/rnaseq)\\n",
+      "download-script": "Wrote download_ena.sh: 18 download command(s) using curl.\\nNothing has been downloaded. Run it yourself with `bash download_ena.sh`, or submit it with `sbatch download_ena.sh`."
+    }
+  }
+}\
+""", 'samplesheet.csv': """\
+sample,fastq_1,fastq_2,strandedness
+SAMEA111350648,https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/053/ERR10181253/ERR10181253_1.fastq.gz,https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/053/ERR10181253/ERR10181253_2.fastq.gz,auto
+SAMEA111350649,https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/054/ERR10181254/ERR10181254_1.fastq.gz,https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/054/ERR10181254/ERR10181254_2.fastq.gz,auto
+SAMEA111350650,https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/055/ERR10181255/ERR10181255_1.fastq.gz,https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/055/ERR10181255/ERR10181255_2.fastq.gz,auto
+SAMEA111350651,https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/056/ERR10181256/ERR10181256_1.fastq.gz,https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/056/ERR10181256/ERR10181256_2.fastq.gz,auto
+SAMEA111350652,https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/057/ERR10181257/ERR10181257_1.fastq.gz,https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/057/ERR10181257/ERR10181257_2.fastq.gz,auto
+SAMEA111350653,https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/058/ERR10181258/ERR10181258_1.fastq.gz,https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/058/ERR10181258/ERR10181258_2.fastq.gz,auto
+SAMEA111350654,https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/059/ERR10181259/ERR10181259_1.fastq.gz,https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/059/ERR10181259/ERR10181259_2.fastq.gz,auto
+SAMEA111350655,https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/060/ERR10181260/ERR10181260_1.fastq.gz,https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/060/ERR10181260/ERR10181260_2.fastq.gz,auto
+SAMEA111350656,https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/061/ERR10181261/ERR10181261_1.fastq.gz,https://ftp.sra.ebi.ac.uk/vol1/fastq/ERR101/061/ERR10181261/ERR10181261_2.fastq.gz,auto
+""", 'tables/metadata.tsv': """\
+sample	replicate	species	sex	age	condition	genotype	treatment	tissue	common_name	ecotype
+SAMEA111350649	ERR10181254	Arabidopsis thaliana	NA	mature non-fertilized ovule	NA	wild type genotype	NA	plant ovule	thale cress	Col-0
+SAMEA111350655	ERR10181260	Arabidopsis thaliana	NA	mature non-fertilized ovule	NA	wild type genotype	NA	plant ovule	thale cress	Col-0
+SAMEA111350648	ERR10181253	Arabidopsis thaliana	NA	mature non-fertilized ovule	NA	wild type genotype	NA	plant ovule	thale cress	Col-0
+SAMEA111350654	ERR10181259	Arabidopsis thaliana	NA	mature non-fertilized ovule	NA	wild type genotype	NA	plant ovule	thale cress	Col-0
+SAMEA111350656	ERR10181261	Arabidopsis thaliana	NA	mature non-fertilized ovule	NA	wild type genotype	NA	plant ovule	thale cress	Col-0
+SAMEA111350651	ERR10181256	Arabidopsis thaliana	NA	mature non-fertilized ovule	NA	wild type genotype	NA	plant ovule	thale cress	Col-0
+SAMEA111350652	ERR10181257	Arabidopsis thaliana	NA	mature non-fertilized ovule	NA	wild type genotype	NA	plant ovule	thale cress	Col-0
+SAMEA111350650	ERR10181255	Arabidopsis thaliana	NA	mature non-fertilized ovule	NA	wild type genotype	NA	plant ovule	thale cress	Col-0
+SAMEA111350653	ERR10181258	Arabidopsis thaliana	NA	mature non-fertilized ovule	NA	wild type genotype	NA	plant ovule	thale cress	Col-0
+"""})
