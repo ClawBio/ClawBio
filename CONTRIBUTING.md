@@ -250,4 +250,4 @@ We commit to triaging all externally reported findings and referencing the findi
 
 ## Questions?
 
-Open an issue or reach out via the repo discussions.
+Open an issue, start a [discussion](https://github.com/ClawBio/ClawBio/discussions), or ask in [`#all-clawbio`](https://clawbioworkspace.slack.com/channels/all-clawbio) on Slack ([invite](https://clawbio.ai/join/slack/)).
