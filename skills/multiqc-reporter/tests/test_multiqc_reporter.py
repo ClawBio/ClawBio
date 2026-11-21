@@ -1,12 +1,13 @@
 """
 test_multiqc_reporter.py — Tests for the MultiQC skill
 =======================================================
-All tests run offline — no MultiQC installation required.
-subprocess.run is mocked throughout.
+All tests run offline. All but one mock subprocess.run, so need no MultiQC;
+test_demo_runs_with_real_multiqc needs the `multiqc-reporter` extra.
 """
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -148,3 +149,24 @@ def test_cli_command_for_repro_demo(tmp_path):
     )
     assert "--demo" in cmd
     assert "--input" not in cmd
+
+
+# ── Real MultiQC (the `multiqc-reporter` extra) ───────────────────────────────
+# Every test above mocks the binary. This one runs the catalog demo end to end,
+# so CI (`uv sync --all-extras`) exercises real MultiQC output parsing.
+
+needs_multiqc = pytest.mark.skipif(
+    importlib.util.find_spec("multiqc") is None,
+    reason="needs multiqc (uv sync --extra multiqc-reporter)",
+)
+
+
+@needs_multiqc
+def test_demo_runs_with_real_multiqc(tmp_path):
+    from clawbio.common import demo_runner
+
+    result = demo_runner.run_demo("multiqc-reporter", tmp_path, timeout=300)
+    assert result["passed"], result.get("stderr")
+    assert (tmp_path / "report.md").is_file()
+    for name in ("commands.sh", "environment.yml", "checksums.sha256"):
+        assert (tmp_path / "reproducibility" / name).is_file(), name

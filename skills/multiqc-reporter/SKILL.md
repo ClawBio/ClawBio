@@ -201,7 +201,7 @@ output_dir/
 ## Dependencies
 
 **External binary** (not a Python package import):
-- `multiqc >= 1.20`; install with `pip install multiqc`
+- `multiqc >= 1.20`; in a ClawBio checkout install it with `uv sync --extra multiqc-reporter` (or `pip install multiqc` standalone)
 
 **Python** (repo-local `clawbio` package for reproducibility helpers):
 - `subprocess`, `json`, `shutil`, `argparse`, `tempfile`, `math`
