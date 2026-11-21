@@ -1,4 +1,6 @@
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -102,6 +104,44 @@ def test_run_demo_keeps_the_stderr_of_a_failing_demo(catalog, tmp_path):
 
     assert not result["passed"]
     assert "demo exploded" in result["stderr_tail"]
+
+
+# Points the runner at the catalog named by the first argument and prints the
+# run_demo result for the skill it holds.
+_RUN_DEMO_FROM_CATALOG = """
+import json, sys
+from pathlib import Path
+from clawbio.common import demo_runner
+demo_runner.CATALOG = Path(sys.argv[1])
+print(json.dumps(demo_runner.run_demo("tcga-query", Path(sys.argv[2]), timeout=30)))
+"""
+
+
+def test_run_demo_reads_the_catalog_as_utf8_whatever_the_locale(tmp_path):
+    # generate_catalog.py writes the catalog as UTF-8 and keeps non-ASCII text,
+    # such as xena-tcga-gene-query's Chinese trigger keywords. 预后 is E5 90 8E
+    # in UTF-8, and neither ASCII nor cp1252 can decode 0x90.
+    catalog = tmp_path / "catalog.json"
+    skill = {"name": "tcga-query", "trigger_keywords": ["生存分析", "预后"], "demo_command": "python -c pass"}
+    catalog.write_text(json.dumps({"skills": [skill]}, ensure_ascii=False), encoding="utf-8")
+    # With locale coercion and UTF-8 mode off, the C locale gives Python an
+    # ASCII locale encoding on Linux and macOS. Windows ignores LC_ALL and uses
+    # its ANSI code page, such as cp1252.
+    env = {**os.environ, "LC_ALL": "C", "PYTHONCOERCECLOCALE": "0", "PYTHONUTF8": "0"}
+    env.pop("PYTHONIOENCODING", None)
+
+    proc = subprocess.run(
+        [sys.executable, "-c", _RUN_DEMO_FROM_CATALOG, str(catalog), str(tmp_path / "out")],
+        cwd=demo_runner.PROJECT_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+    assert proc.returncode == 0, proc.stderr
+    result = json.loads(proc.stdout)
+    assert result["passed"], result["stderr_tail"]
 
 
 _token = st.sampled_from(["--demo", "--output", "/tmp/a", "x.py", "--input", "f.vcf", "--output=/tmp/b"])
