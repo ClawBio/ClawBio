@@ -148,7 +148,10 @@ def test_commands_sh_hands_free_text_back_unchanged(tmp_path_factory, graph, cyp
     before = set(root.iterdir())
     run = subprocess.run(
         ["bash", str(out / "reproducibility" / "commands.sh")],
-        env={"PATH": "/usr/bin:/bin", "PYTHON": str(fake_python)},
+        # The bundle no longer records the checkout path (#901); replayed from
+        # outside a ClawBio clone, it finds the skill through CLAWBIO_ROOT.
+        env={"PATH": "/usr/bin:/bin", "PYTHON": str(fake_python),
+             "CLAWBIO_ROOT": str(Path(tg.__file__).resolve().parents[2])},
         capture_output=True, check=True, cwd=root,
     )
     assert set(root.iterdir()) == before, "replay created files next to the output"
