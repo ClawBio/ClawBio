@@ -17,7 +17,10 @@ from pathlib import Path
 
 import pytest
 from hypothesis import given, strategies as st
+from inline_snapshot import snapshot
 import sys
+
+from clawbio.common import demo_runner
 
 # Make the skill importable without installation
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -3780,3 +3783,1318 @@ class TestComputeFst:
         # 3 clean columns (col 1 excluded), all differ → Dxy = 1.0
         assert result.pi_between[("A", "B")] == pytest.approx(1.0)
         assert result.fst_pairwise[("A", "B")] == pytest.approx(1.0)
+
+
+# ── Demo output snapshot ──────────────────────────────────────────────────────
+# Fails when a code change alters any demo number. If the change is intended,
+# run `pytest skills/dnasp/tests --inline-snapshot=fix`; it rewrites the
+# snapshot() values below, and the PR diff shows which numbers moved.
+
+@pytest.mark.demo_snapshot
+def test_demo_output_matches_snapshot(tmp_path):
+    assert demo_runner.demo_outputs("dnasp", tmp_path) == snapshot({'demo_input.fas': """\
+>pop1_seq1
+TTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGGCTGGTACTGTTTTTAAAGAATCT
+>pop1_seq2
+TTTTATCATGATAATAAAGAACAATGTATTATCATAGCCGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGGCTGGTACTGTTTTTAAAGAATCT
+>pop1_seq3
+TTCTATCATGATAATAAAGAACAATGTATTATCATAGCCGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGGCTGGTACTGTTTTTAAAGAATCT
+>pop1_seq4
+TTCTATCATAATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGGCTGGTACTGTTTTTAAAGAATCT
+>pop1_seq5
+TTTTATCATAATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGGCTGGTACTGTTTTTAAAGAATCT
+>pop2_seq1
+TTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGGCTGGTACTGTTTTTAAAGAATCT
+>pop2_seq2
+TTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTCTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGGCTGGTACTGTTTTTAAAGAATCT
+>pop2_seq3
+TTCTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTCTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGGCTGGTACTGTTTTTAAAGAATCT
+>pop2_seq4
+TTTTATCATGATAATAAAGAAAAATGTATTATCATAGCCGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGGCTGGTACTGTTTTTAAAGAATCT
+>pop2_seq5
+TTTTATCATGATAATAAAGAAAAATGTATTATCATAGCCGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGGCTGGTACTGTTTTTAAAGAATCT
+>outgroup
+TTTTATCATGATAATAAAGAACAATGTATTATCATAACTGGTCCCACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTCGTATGTGGTTTTATCATGATAATAAAGAACAATGTATTATCATAGCTGGTCCTACTGTTTTGCTTTCTGGTATGTGGGCTGGTACTGTTTTTAAAGAATCT
+""", 'demo_pop.txt': """\
+pop1_seq1	Pop1
+pop1_seq2	Pop1
+pop1_seq3	Pop1
+pop1_seq4	Pop1
+pop1_seq5	Pop1
+pop2_seq1	Pop2
+pop2_seq2	Pop2
+pop2_seq3	Pop2
+pop2_seq4	Pop2
+pop2_seq5	Pop2
+""", 'ld_pairs.tsv': """\
+Site1	Site2	Dist	n	D	D_prime	R2	Chi2	P_chi2	Sig
+3	10	7	10	0.040000	0.285714	0.047619	0.4762	0.490153	n.s.
+3	22	19	10	-0.060000	-1.000000	0.107143	1.0714	0.300623	n.s.
+3	39	36	10	-0.020000	-0.166667	0.007937	0.0794	0.778160	n.s.
+3	72	69	10	0.040000	0.285714	0.047619	0.4762	0.490153	n.s.
+10	22	12	10	-0.040000	-1.000000	0.062500	0.6250	0.429195	n.s.
+10	39	29	10	-0.080000	-1.000000	0.166667	1.6667	0.196706	n.s.
+10	72	62	10	-0.040000	-1.000000	0.062500	0.6250	0.429195	n.s.
+22	39	17	10	0.120000	1.000000	0.375000	3.7500	0.052808	n.s.
+22	72	50	10	-0.040000	-1.000000	0.062500	0.6250	0.429195	n.s.
+39	72	33	10	-0.080000	-1.000000	0.166667	1.6667	0.196706	n.s.
+""", 'report.md': """\
+# DnaSP Population Genetics Report
+
+**Input**: demo_input.fas  \n\
+**Date**: <TIMESTAMP>  \n\
+**Tool**: DnaSP-Python (ClawBio skill)  \n\
+
+---
+
+## Input Summary
+
+| Parameter | Value |
+|-----------|-------|
+| Number of sequences | 10 |
+| Alignment length (bp) | 300 |
+| Net sites (after gap removal) | 300 |
+
+## Polymorphism Statistics
+
+| Statistic | Value |
+|-----------|-------|
+| Segregating sites (S) | 5 |
+| Total mutations (η) | 5 |
+| Number of haplotypes (H) | 8 |
+| Haplotype diversity (Hd) | 0.955556 |
+| Variance of Hd | 0.003529 |
+| Nucleotide diversity (π) | 0.00688889 |
+| Mean pairwise differences (k) | 2.066667 |
+| G+C content | 0.3217 |
+
+## Theta Estimates
+
+| Estimator | Per site | Absolute |
+|-----------|---------|----------|
+| Watterson's θ_W | 0.00589143 | 1.767429 |
+| Tajima's θ_k (= π) | 0.00688889 | 2.066667 |
+
+## Neutrality Tests
+
+| Test | Value | Interpretation |
+|------|-------|----------------|
+| Tajima's D | 0.678893 | Descriptive statistic; significance not assessed (use --n-sim for a coalescent P-value) |
+| Fu & Li's D* | 1.300113 | Descriptive statistic; significance not assessed (requires calibrated critical values or simulation) |
+| Fu & Li's F* | 1.286661 | Descriptive statistic; significance not assessed (requires calibrated critical values or simulation) |
+| Ramos-Onsins & Rozas R2 | 0.206667 | Descriptive statistic; significance not assessed (use --n-sim for a coalescent P-value) |
+
+## Linkage Disequilibrium
+
+Biallelic sites analysed: 5  \n\
+Pairwise comparisons: 10  \n\
+
+| Statistic | Value | Reference |
+|-----------|-------|-----------|
+| ZnS (average R²) | 0.110615 | Kelly 1997, eq 3 |
+| Za (adjacent R²) | 0.162946 | Rozas et al. 2001 |
+| ZZ = Za − ZnS | 0.052331 | Rozas et al. 2001 |
+
+### Pairwise LD (first 20 pairs shown; full table in ld_pairs.tsv)
+
+| Site1 | Site2 | Dist | D | D' | R² | χ² | P | Sig |
+|-------|-------|------|---|----|----|-----|---|-----|
+| 3 | 10 | 7 | 0.0400 | 0.2857 | 0.0476 | 0.476 | 0.4902 | n.s. |
+| 3 | 22 | 19 | -0.0600 | -1.0000 | 0.1071 | 1.071 | 0.3006 | n.s. |
+| 3 | 39 | 36 | -0.0200 | -0.1667 | 0.0079 | 0.079 | 0.7782 | n.s. |
+| 3 | 72 | 69 | 0.0400 | 0.2857 | 0.0476 | 0.476 | 0.4902 | n.s. |
+| 10 | 22 | 12 | -0.0400 | -1.0000 | 0.0625 | 0.625 | 0.4292 | n.s. |
+| 10 | 39 | 29 | -0.0800 | -1.0000 | 0.1667 | 1.667 | 0.1967 | n.s. |
+| 10 | 72 | 62 | -0.0400 | -1.0000 | 0.0625 | 0.625 | 0.4292 | n.s. |
+| 22 | 39 | 17 | 0.1200 | 1.0000 | 0.3750 | 3.750 | 0.0528 | n.s. |
+| 22 | 72 | 50 | -0.0400 | -1.0000 | 0.0625 | 0.625 | 0.4292 | n.s. |
+| 39 | 72 | 33 | -0.0800 | -1.0000 | 0.1667 | 1.667 | 0.1967 | n.s. |
+
+## Recombination
+
+| Statistic | Value | Reference |
+|-----------|-------|-----------|
+| Minimum recombination events (Rm) | 1 | Hudson & Kaplan 1985 |
+| Incompatible site pairs | 3 | Four-gamete test |
+
+**Incompatible pairs** (positions 1-based):
+
+  - Sites 3 and 10
+  - Sites 3 and 39
+  - Sites 3 and 72
+
+## Population Size Changes  -  Mismatch Distribution
+
+| Statistic | Value | Reference |
+|-----------|-------|-----------|
+| Number of pairs | 45 | |
+| Mean pairwise differences | 2.0667 | |
+| Observed variance of k (unbiased over pairs, as DnaSP) | 1.0182 | PairwiseDiff.vb |
+| C.V. of k (Sokal & Rohlf unbiased correction, as DnaSP) | 0.5005 | Sokal & Rohlf |
+| Raggedness r | 0.121481 | Harpending 1994 |
+
+**Mismatch distribution** (differences → pair count):
+
+| Differences | Pairs | Proportion |
+|-------------|-------|------------|
+| 0 | 2 | 0.0444 |
+| 1 | 11 | 0.2444 |
+| 2 | 18 | 0.4000 |
+| 3 | 10 | 0.2222 |
+| 4 | 4 | 0.0889 |
+
+Low raggedness → smooth distribution (consistent with population expansion).  \n\
+High raggedness → ragged distribution (consistent with constant size or contraction).
+
+## InDel Polymorphism
+
+Model 1: diallelic, non-overlapping events. Undefined event statistics require at least one accepted event.
+
+| Statistic | Value |
+|-----------|-------|
+| Alignment positions with gaps | 0 |
+| Number of InDel events | 0 |
+| Mean event length (bp) | 0.000 |
+| Mean deletion length (carrier-weighted, bp) | 0.000 |
+| Net sites analysed (non-InDel plus accepted InDel) | 300 |
+| Excluded overlapping events | 0 |
+| Excluded overlap sites | 0 |
+| Missing sites excluded | 0 |
+| Fixed-gap sites excluded | 0 |
+| InDel haplotypes | 0 |
+| InDel haplotype diversity (Hd) | 0.000000 |
+| InDel diversity k(i) | 0.000000 |
+| InDel diversity per site π(i) | 0.000000 |
+| θ from InDel events | 0.000000 |
+| Tajima's D (InDel) | n.a. |
+
+## DNA Divergence Between Populations
+
+**Population 1**: Pop1 (n = 5)  \n\
+**Population 2**: Pop2 (n = 5)  \n\
+**Net sites analysed**: 300  \n\
+
+### Within-population diversity
+
+| Statistic | Pop1 | Pop2 |
+|-----------|------|------|
+| π (nucleotide diversity) | 0.006000 | 0.007333 |
+| k (mean pairwise diff) | 1.8000 | 2.2000 |
+
+### Between-population divergence
+
+| Statistic | Value | Reference |
+|-----------|-------|-----------|
+| Dxy (nucleotide divergence) | 0.007067 | Nei 1987, eq 10.20 |
+| Da (net divergence) | 0.000400 | Nei 1987 |
+| Fixed differences (Sf, sites) | 0 | Hey 1991 |
+| Shared mutations (Ss) | 2 | |
+| Mutations exclusive to Pop1 (Sx1) | 1 | |
+| Mutations exclusive to Pop2 (Sx2) | 2 | |
+
+> Sf counts sites with no shared allele; Ss / Sx are mutation counts (DnaSP Divergencia.vb). Total mutations in a population = Sx + Ss.
+
+## Fu & Li D and F (with Outgroup)
+
+**Ingroup sequences**: 10  \n\
+
+| Statistic | Value | Reference |
+|-----------|-------|-----------|
+| Orientable segregating sites (S) | 5 | Fu & Li 1993 |
+| Total derived mutations (η) | 5 | Fu & Li 1993 |
+| External mutations (η_e) | 0 | Fu & Li 1993 |
+| Mean pairwise differences (k̄) | 2.0667 | |
+| Fu & Li D | 1.363927 | Descriptive statistic; significance not assessed (requires calibrated critical values or simulation) |
+| Fu & Li F | 1.413041 | Descriptive statistic; significance not assessed (requires calibrated critical values or simulation) |
+
+> **Note**: D and F with outgroup differ from D\\* and F\\* (no outgroup): the outgroup polarises mutations as ancestral/derived, enabling counting of 'external' mutations on terminal branches only (η_e), capped at 1 per site.  D = (S − aₙ·η_e)/√(u_D·S + v_D·S²); F = (k̄ − η_e)/√(u_F·S + v_F·S²); S is the segregating-site count (DnaSP's default 'from segregating sites' mode), not η (η is reported for reference only). Coefficients from Fu & Li (1993), Simonsen et al. (1995).
+
+## McDonald-Kreitman Test
+
+| Category | Count |
+|----------|-------|
+| Synonymous polymorphisms (Ps) | 3 |
+| Nonsynonymous polymorphisms (Pn) | 2 |
+| Synonymous fixed differences (Ds) | 1 |
+| Nonsynonymous fixed differences (Dn) | 2 |
+| Complex codons not analysed (excluded from all four counts) | 0 |
+| Internal stop codons (analysed as a 21st amino acid, as in DnaSP) | 0 |
+
+| Statistic | Value | Reference |
+|-----------|-------|-----------|
+| α (proportion adaptive) | 0.6667 | McDonald & Kreitman 1991 |
+| NI (Neutrality Index) | 0.3333 | Rand & Kann 1996 |
+| DoS (Direction of Selection) | 0.2667 | Stoletzki & Eyre-Walker 2011 |
+| Fisher's exact P | 1.000000 | |
+
+> **Interpretation**: α > 0 and P < 0.05 → positive (adaptive) selection driving nonsynonymous fixation. α < 0 → slight excess of nonsynonymous polymorphism (weak purifying selection or demographic effects). NI > 1 → purifying selection; NI < 1 → positive selection. DoS > 0 → net positive selection; DoS < 0 → net negative selection.
+
+## Ka/Ks (dN/dS)  -  Nei-Gojobori Method
+
+| Statistic | Value | Reference |
+|-----------|-------|-----------|
+| Codons analysed | 100 | |
+| Internal stop codons (analysed as a 21st amino acid, as in DnaSP) | 0 | |
+| Mean synonymous sites (S) | 64.00 | Nei & Gojobori 1986 |
+| Mean nonsynonymous sites (N) | 236.00 | |
+| Mean synonymous differences (Sd) | 1.9000 | |
+| Mean nonsynonymous differences (Nd) | 2.4000 | |
+| Ks (synonymous substitutions/site) | 0.030291 | JC corrected |
+| Ka (nonsynonymous substitutions/site) | 0.010239 | JC corrected |
+| ω = Ka/Ks | 0.3380 | |
+
+> **Interpretation**: ω < 1 → purifying (negative) selection constrains amino-acid change. ω ≈ 1 → neutral evolution. ω > 1 → positive (adaptive) selection driving amino-acid change. Values are averages over ingroup-vs-outgroup pairs only (an outgroup was given); per-branch estimates require a phylogenetic framework.
+
+## Fu's Fs Test (Fu 1997)
+
+| Statistic | Value |
+|-----------|-------|
+| n (sequences) | 10 |
+| H (observed haplotypes) | 8 |
+| θ_π (= k, mean pairwise differences) | 2.0667 |
+| S' = P(K ≥ H \\| θ_π, n) | 0.007057 |
+| Fs | -4.9467 |
+
+> **Interpretation**: Fs = -4.9467. Large negative Fs indicates more haplotypes than expected given nucleotide diversity  -  signature of recent population expansion or genetic hitchhiking. Large positive Fs (a deficit of haplotypes) points to balancing selection or population subdivision. S' is the Ewens upper-tail probability, not the P-value; because θ_π is estimated from the data, significance comes only from coalescent simulation of the null (not run; use --n-sim).
+
+## Site Frequency Spectrum
+
+### Folded SFS (minor allele frequency)
+
+| Minor allele count (i) | Frequency (i/n) | Sites |
+|------------------------|-----------------|-------|
+| 2 | 0.200 | 3 |
+| 3 | 0.300 | 1 |
+| 4 | 0.400 | 1 |
+
+### Unfolded SFS (derived allele frequency, outgroup-polarised)
+
+| Derived allele count (i) | Frequency (i/n) | Sites |
+|--------------------------|-----------------|-------|
+| 2 | 0.200 | 3 |
+| 3 | 0.300 | 1 |
+| 4 | 0.400 | 1 |
+
+> **Interpretation**: A skew toward singletons (i = 1) → excess rare variants → population expansion or purifying selection (consistent with negative Tajima's D). A uniform or U-shaped spectrum → balancing selection. The unfolded SFS distinguishes ancestral from derived alleles; the folded SFS folds the spectrum at i = n/2, treating both polarities equivalently.
+
+## Transition / Transversion Ratio
+
+| Statistic | Value |
+|-----------|-------|
+| Sequences (n) | 10 |
+| Clean sites (all-ATCG columns) | 300 |
+| Biallelic sites classified | 5 |
+| Transitions (Ts) | 4 |
+| Transversions (Tv) | 1 |
+| Ts/Tv ratio | 4.0000 |
+| Polarised by outgroup | yes |
+
+> **Interpretation**: one change is counted per biallelic segregating site (as in DnaSP), so the ratio does not depend on sample size. Transitions (A↔G, C↔T) usually outnumber transversions; Ts/Tv ≈ 2 is typical for nuclear DNA, mitochondrial DNA often shows Ts/Tv > 10, and low values can indicate mutational saturation. Multiallelic sites are excluded. 'N/A' is reported when no transversions are observed.
+
+## Codon Usage Bias
+
+| Statistic | Value |
+|-----------|-------|
+| Sequences (n) | 10 |
+| Mean coding codons per sequence | 100.0 |
+| Effective number of codons (ENC) | 23.74 |
+
+> **Strong codon usage bias** (ENC < 35).
+
+### Per-sequence ENC
+
+| Sequence | ENC |
+|----------|-----|
+| pop1_seq1 | 23.373 |
+| pop1_seq2 | 23.807 |
+| pop1_seq3 | 24.226 |
+| pop1_seq4 | 23.791 |
+| pop1_seq5 | 23.373 |
+| pop2_seq1 | 23.373 |
+| pop2_seq2 | 23.791 |
+| pop2_seq3 | 24.015 |
+| pop2_seq4 | 23.807 |
+| pop2_seq5 | 23.807 |
+
+### RSCU Values
+
+| Amino acid | Codons | RSCU |
+|------------|--------|------|
+| * | TAA | 0.000 |
+| * | TAG | 0.000 |
+| * | TGA | 0.000 |
+| A | GCA | 0.000 |
+| A | GCC | 0.320 |
+| A | GCG | 0.000 |
+| A | GCT | 3.680 |
+| C | TGC | 0.000 |
+| C | TGT | 2.000 |
+| D | GAC | 0.000 |
+| D | GAT | 2.000 |
+| E | GAA | 2.000 |
+| E | GAG | 0.000 |
+| F | TTC | 0.200 |
+| F | TTT | 1.800 |
+| G | GGA | 0.000 |
+| G | GGC | 0.000 |
+| G | GGG | 0.000 |
+| G | GGT | 4.000 |
+| H | CAC | 0.000 |
+| H | CAT | 2.000 |
+| I | ATA | 1.000 |
+| I | ATC | 1.000 |
+| I | ATT | 1.000 |
+| K | AAA | 2.000 |
+| K | AAG | 0.000 |
+| L | CTA | 0.000 |
+| L | CTC | 0.000 |
+| L | CTG | 0.000 |
+| L | CTT | 3.000 |
+| L | TTA | 0.000 |
+| L | TTG | 3.000 |
+| M | ATG | 1.000 |
+| N | AAC | 0.000 |
+| N | AAT | 2.000 |
+| P | CCA | 0.000 |
+| P | CCC | 0.000 |
+| P | CCG | 0.000 |
+| P | CCT | 4.000 |
+| Q | CAA | 2.000 |
+| Q | CAG | 0.000 |
+| R | AGA | 0.000 |
+| R | AGG | 0.000 |
+| R | CGA | 0.000 |
+| R | CGC | 0.000 |
+| R | CGG | 0.000 |
+| R | CGT | 6.000 |
+| S | AGC | 0.000 |
+| S | AGT | 0.000 |
+| S | TCA | 0.000 |
+| S | TCC | 0.000 |
+| S | TCG | 0.000 |
+| S | TCT | 6.000 |
+| T | ACA | 0.000 |
+| T | ACC | 0.000 |
+| T | ACG | 0.000 |
+| T | ACT | 4.000 |
+| V | GTA | 0.000 |
+| V | GTC | 0.000 |
+| V | GTG | 0.000 |
+| V | GTT | 4.000 |
+| W | TGG | 1.000 |
+| Y | TAC | 0.000 |
+| Y | TAT | 2.000 |
+
+> RSCU = 1.0: uniform usage among synonyms. RSCU > 1.0: preferred codon. RSCU < 1.0: avoided codon.
+
+## Fay & Wu's H and Zeng's E
+
+Raw per-site H and theta-L minus theta-W only; these are not normalised Hn/ZE or significance tests. Multi-allelic and unorientable polymorphic sites are excluded from the eligible set.
+
+| Statistic | Value |
+|-----------|-------|
+| Ingroup sequences (n) | 10 |
+| Eligible sites (L_net) | 300 |
+| Polarisable segregating sites | 5 |
+| θ_π (from polarised sites) | 0.006889 |
+| θ_W (Watterson, polarised) | 0.005891 |
+| θ_H (Fay & Wu 2000) | 0.002741 |
+| θ_L (Zeng et al. 2006) | 0.004815 |
+| **H = θ_π − θ_H** | 0.004148 |
+| **E = θ_L − θ_W** | -0.001077 |
+
+> **H ≥ 0**: no excess of high-frequency derived alleles; consistent with neutrality or purifying selection.
+
+> **E < 0**: θ_L < θ_W  -  excess of low-frequency derived alleles; consistent with a recent bottleneck or purifying selection.
+
+## Population Differentiation (Fst)
+
+| Population | n | π (within-pop) |
+|------------|---|----------------|
+| Pop1 | 5 | 0.006000 |
+| Pop2 | 5 | 0.007333 |
+
+### Pairwise Fst (Hudson et al. 1992)
+
+| Population pair | Dxy (between) | Fst |
+|-----------------|---------------|-----|
+| Pop1 vs Pop2 | 0.007067 | 0.0566 |
+
+> **Mean Fst across all pairs: 0.0566**
+
+> Moderate genetic differentiation (0.05 ≤ Fst < 0.15; Wright 1978).
+
+## Figures
+
+![summary](figures/summary.png)
+![ld_decay](figures/ld_decay.png)
+![mismatch](figures/mismatch.png)
+![sfs](figures/sfs.png)
+![codon_usage](figures/codon_usage.png)
+![fst](figures/fst.png)
+
+## Analysis status
+
+Completed: codon, divergence, faywu, fst, fufs, fuliout, indel, kaks, ld, mk, polymorphism, popsize, recombination, sfs, tstv
+
+
+Reproducibility: archived inputs and hashes are in reproducibility/. Replay commands require the recorded code/environment paths; use the validation package runner when transferring to another machine.
+
+---
+
+## Methods
+
+Statistics computed using DnaSP-Python (ClawBio), reimplementing core DnaSP 6 algorithms (Rozas et al. 2017). Gap treatment: complete deletion. Neutrality tests include both intraspecific (D\\*, F\\*  -  no outgroup) and outgroup-polarised (D, F) formulations.
+
+## References
+
+- Rozas et al. (2017) Mol. Biol. Evol. 34:3299-3302, doi:10.1093/molbev/msx248  -  DnaSP v6
+- Tajima (1989) Genetics 123:585-595  -  Tajima's D
+- Fu & Li (1993) Genetics 133:693-709  -  D, F (outgroup) and D*, F* (no outgroup)
+- Simonsen et al. (1995) Genetics 141:413-429  -  variance coefficients
+- Nei & Tajima (1981) Genetics 97:145-163  -  haplotype diversity
+- Ramos-Onsins & Rozas (2002) Mol. Biol. Evol. 19:2092-2100  -  R2
+- Kelly (1997) Genetics 146:1197-1206  -  ZnS
+- Rozas et al. (2001) Genetics 158:1147-1155  -  Za, ZZ
+- Hill & Robertson (1968) Theor. Appl. Genet. 38:226-231  -  R²
+- Lewontin (1964) Genetics 49:49-67  -  D'
+- Hudson & Kaplan (1985) Genetics 111:147-164  -  Rm
+- Rogers & Harpending (1992) Mol. Biol. Evol. 9:552-569  -  mismatch
+- Harpending (1994) Hum. Biol. 66:591-600  -  raggedness
+- Nei (1987) Molecular Evolutionary Genetics  -  Dxy, Da
+- Hudson, Kreitman & Aguadé (1987) Genetics 116:153-159  -  HKA test
+- McDonald & Kreitman (1991) Nature 351:652-654  -  MK test
+- Nei & Gojobori (1986) Mol. Biol. Evol. 3:418-426  -  Ka/Ks
+- Fu (1997) Genetics 147:915-925  -  Fu's Fs
+- Sharp & Li (1987) Nucleic Acids Res. 15:1281-1295  -  RSCU
+- Wright (1990) Gene 87:23-29  -  ENC
+- Fay & Wu (2000) Genetics 155:1405-1413  -  H statistic
+- Zeng et al. (2006) Genetics 174:1431-1439  -  E statistic
+- Hudson et al. (1992) Genetics 132:583-589  -  Fst estimator
+
+---
+
+*ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.*\
+""", 'result.json': """\
+{
+  "status": "ok",
+  "ok": true,
+  "skill": "dnasp",
+  "version": "0.6.1",
+  "completed_at": "<TIMESTAMP>",
+  "input_checksum": "sha256:359c69271b8acf47089bec8500ed138dd1645c6f50e41280a2995b5980c00a7a",
+  "datasets": {
+    "input": "demo_input.fas"
+  },
+  "summary": {
+    "source": "demo_input.fas",
+    "n": 10,
+    "L_total": 300,
+    "L_net": 300,
+    "S": 5,
+    "Eta": 5,
+    "H": 8,
+    "Hd": 0.955556,
+    "Pi": 0.006889,
+    "k": 2.066667,
+    "ThetaW_nuc": 0.005891,
+    "TajimaD": 0.678893,
+    "FuLiD_star": 1.300113,
+    "FuLiF_star": 1.286661,
+    "R2": 0.206667,
+    "variant_sites_only": false,
+    "windows": 0,
+    "analyses_completed": [
+      "codon",
+      "divergence",
+      "faywu",
+      "fst",
+      "fufs",
+      "fuliout",
+      "indel",
+      "kaks",
+      "ld",
+      "mk",
+      "polymorphism",
+      "popsize",
+      "recombination",
+      "sfs",
+      "tstv"
+    ],
+    "analyses_skipped": {}
+  },
+  "data": {
+    "global": {
+      "region": "1-300",
+      "n": 10,
+      "L_total": 300,
+      "L_net": 300,
+      "S": 5,
+      "Eta": 5,
+      "H": 8,
+      "Hd": 0.9555555555555556,
+      "VarHd": 0.00352888888888889,
+      "Pi": 0.00688888888888889,
+      "k": 2.066666666666667,
+      "GC": 0.32166666666666666,
+      "ThetaW": 1.7674288118950763,
+      "ThetaW_nuc": 0.005891429372983588,
+      "TajimaD": 0.6788926654574243,
+      "FuLiD_star": 1.300113038923171,
+      "FuLiF_star": 1.2866611863346276,
+      "R2": 0.2066666666666667,
+      "midpoint": null
+    },
+    "windows": [],
+    "ld": {
+      "n_biallelic": 5,
+      "n_pairs": 10,
+      "ZnS": 0.11061507936507937,
+      "Za": 0.16294642857142858,
+      "ZZ": 0.0523313492063492
+    },
+    "recombination": {
+      "Rm": 1,
+      "n_incompatible_pairs": 3
+    },
+    "popsize": {
+      "observed": {
+        "0": 2,
+        "1": 11,
+        "2": 18,
+        "3": 10,
+        "4": 4
+      },
+      "n_pairs": 45,
+      "mean": 2.066666666666667,
+      "variance": 1.018181818181818,
+      "raggedness": 0.1214814814814815,
+      "cv": 0.5004562292779846
+    },
+    "indel": {
+      "n_positions_with_gaps": 0,
+      "net_sites": 300,
+      "n_excluded_events": 0,
+      "n_excluded_overlap_sites": 0,
+      "n_missing_sites": 0,
+      "n_fixed_gap_sites": 0,
+      "mean_deletion_length": 0.0,
+      "n_events": 0,
+      "mean_event_length": 0.0,
+      "n_haplotypes": 0,
+      "haplotype_diversity": 0.0,
+      "k_indel": 0.0,
+      "pi_indel": 0.0,
+      "theta_indel": 0.0,
+      "tajima_d_indel": null,
+      "events": []
+    },
+    "divergence": {
+      "pop1_name": "Pop1",
+      "pop2_name": "Pop2",
+      "n1": 5,
+      "n2": 5,
+      "L_net": 300,
+      "Pi1": 0.006,
+      "Pi2": 0.007333333333333334,
+      "k1": 1.8,
+      "k2": 2.2,
+      "Dxy": 0.007066666666666667,
+      "Da": 0.0004000000000000002,
+      "n_fixed": 0,
+      "n_shared": 2,
+      "n_private1": 1,
+      "n_private2": 2
+    },
+    "fuliout": {
+      "n": 10,
+      "S": 5,
+      "eta": 5,
+      "eta_e": 0,
+      "k_bar": 2.066666666666667,
+      "D": 1.3639274837433302,
+      "F": 1.4130414205161763
+    },
+    "hka": null,
+    "mk": {
+      "Pn": 2,
+      "Ps": 3,
+      "Dn": 2,
+      "Ds": 1,
+      "alpha": 0.6666666666666667,
+      "NI": 0.3333333333333333,
+      "DoS": 0.2666666666666666,
+      "fisher_p": 0.9999999999999982,
+      "n_complex_codons": 0,
+      "n_internal_stop_codons": 0
+    },
+    "kaks": {
+      "n_codons": 100,
+      "S_sites": 64.0,
+      "N_sites": 236.0,
+      "Sd": 1.9,
+      "Nd": 2.4,
+      "Ks": 0.030291045678966046,
+      "Ka": 0.010239066876245491,
+      "omega": 0.33802289246671496,
+      "n_internal_stop_codons": 0
+    },
+    "fufs": {
+      "n": 10,
+      "H": 8,
+      "theta_pi": 2.066666666666667,
+      "S_k": 0.0070567504811286175,
+      "Fs": -4.946688838124387
+    },
+    "sfs": {
+      "n": 10,
+      "folded": {
+        "3": 1,
+        "2": 3,
+        "4": 1
+      },
+      "unfolded": {
+        "3": 1,
+        "2": 3,
+        "4": 1
+      },
+      "has_outgroup": true,
+      "n_multiallelic_excluded": 0
+    },
+    "tstv": {
+      "n": 10,
+      "L_net": 300,
+      "n_sites": 5,
+      "n_transitions": 4,
+      "n_transversions": 1,
+      "ts_tv": 4.0,
+      "n_multiallelic_excluded": 0,
+      "n_unpolarisable_excluded": 0,
+      "polarised": true
+    },
+    "codon": {
+      "n": 10,
+      "n_codons": 100.0,
+      "codon_counts": {
+        "TTT": 4.5,
+        "TTC": 0.5,
+        "TTA": 0.0,
+        "TTG": 4.0,
+        "CTT": 4.0,
+        "CTC": 0.0,
+        "CTA": 0.0,
+        "CTG": 0.0,
+        "ATT": 4.0,
+        "ATC": 4.0,
+        "ATA": 4.0,
+        "ATG": 4.0,
+        "GTT": 5.0,
+        "GTC": 0.0,
+        "GTA": 0.0,
+        "GTG": 0.0,
+        "TCT": 5.0,
+        "TCC": 0.0,
+        "TCA": 0.0,
+        "TCG": 0.0,
+        "CCT": 4.0,
+        "CCC": 0.0,
+        "CCA": 0.0,
+        "CCG": 0.0,
+        "ACT": 5.0,
+        "ACC": 0.0,
+        "ACA": 0.0,
+        "ACG": 0.0,
+        "GCT": 4.6,
+        "GCC": 0.4,
+        "GCA": 0.0,
+        "GCG": 0.0,
+        "TAT": 4.0,
+        "TAC": 0.0,
+        "TAA": 0.0,
+        "TAG": 0.0,
+        "CAT": 4.0,
+        "CAC": 0.0,
+        "CAA": 3.8,
+        "CAG": 0.0,
+        "AAT": 4.2,
+        "AAC": 0.0,
+        "AAA": 5.2,
+        "AAG": 0.0,
+        "GAT": 3.8,
+        "GAC": 0.0,
+        "GAA": 5.0,
+        "GAG": 0.0,
+        "TGT": 4.0,
+        "TGC": 0.0,
+        "TGA": 0.0,
+        "TGG": 4.0,
+        "CGT": 4.0,
+        "CGC": 0.0,
+        "CGA": 0.0,
+        "CGG": 0.0,
+        "AGT": 0.0,
+        "AGC": 0.0,
+        "AGA": 0.0,
+        "AGG": 0.0,
+        "GGT": 5.0,
+        "GGC": 0.0,
+        "GGA": 0.0,
+        "GGG": 0.0
+      },
+      "rscu": {
+        "TTT": 1.8,
+        "TTC": 0.2,
+        "TTA": 0.0,
+        "TTG": 3.0,
+        "CTT": 3.0,
+        "CTC": 0.0,
+        "CTA": 0.0,
+        "CTG": 0.0,
+        "ATT": 1.0,
+        "ATC": 1.0,
+        "ATA": 1.0,
+        "ATG": 1.0,
+        "GTT": 4.0,
+        "GTC": 0.0,
+        "GTA": 0.0,
+        "GTG": 0.0,
+        "TCT": 6.0,
+        "TCC": 0.0,
+        "TCA": 0.0,
+        "TCG": 0.0,
+        "AGT": 0.0,
+        "AGC": 0.0,
+        "CCT": 4.0,
+        "CCC": 0.0,
+        "CCA": 0.0,
+        "CCG": 0.0,
+        "ACT": 4.0,
+        "ACC": 0.0,
+        "ACA": 0.0,
+        "ACG": 0.0,
+        "GCT": 3.68,
+        "GCC": 0.32,
+        "GCA": 0.0,
+        "GCG": 0.0,
+        "TAT": 2.0,
+        "TAC": 0.0,
+        "CAT": 2.0,
+        "CAC": 0.0,
+        "CAA": 2.0,
+        "CAG": 0.0,
+        "AAT": 2.0,
+        "AAC": 0.0,
+        "AAA": 2.0,
+        "AAG": 0.0,
+        "GAT": 2.0,
+        "GAC": 0.0,
+        "GAA": 2.0,
+        "GAG": 0.0,
+        "TGT": 2.0,
+        "TGC": 0.0,
+        "TGG": 1.0,
+        "CGT": 6.0,
+        "CGC": 0.0,
+        "CGA": 0.0,
+        "CGG": 0.0,
+        "AGA": 0.0,
+        "AGG": 0.0,
+        "GGT": 4.0,
+        "GGC": 0.0,
+        "GGA": 0.0,
+        "GGG": 0.0,
+        "TAA": 0.0,
+        "TAG": 0.0,
+        "TGA": 0.0
+      },
+      "ENC": 23.736329172720655,
+      "per_sequence_enc": {
+        "pop1_seq1": 23.372549019607845,
+        "pop1_seq2": 23.807331628303498,
+        "pop1_seq3": 24.22593627946629,
+        "pop1_seq4": 23.791153670770637,
+        "pop1_seq5": 23.372549019607845,
+        "pop2_seq1": 23.372549019607845,
+        "pop2_seq2": 23.791153670770637,
+        "pop2_seq3": 24.015406162464988,
+        "pop2_seq4": 23.807331628303498,
+        "pop2_seq5": 23.807331628303498
+      }
+    },
+    "faywu": {
+      "n": 10,
+      "L_net": 300,
+      "n_polarised": 5,
+      "theta_pi": 0.00688888888888889,
+      "theta_w": 0.005891429372983588,
+      "theta_h": 0.0027407407407407406,
+      "theta_l": 0.004814814814814814,
+      "H": 0.004148148148148149,
+      "E": -0.0010766145581687734
+    },
+    "fst": {
+      "n_pops": 2,
+      "pop_names": [
+        "Pop1",
+        "Pop2"
+      ],
+      "pop_sizes": {
+        "Pop1": 5,
+        "Pop2": 5
+      },
+      "pi_within": {
+        "Pop1": 0.006,
+        "Pop2": 0.007333333333333334
+      },
+      "pi_between": {
+        "[\\"Pop1\\", \\"Pop2\\"]": 0.007066666666666667
+      },
+      "fst_pairwise": {
+        "[\\"Pop1\\", \\"Pop2\\"]": 0.05660377358490565
+      },
+      "fst_mean": 0.05660377358490565
+    },
+    "analysis_status": {
+      "requested": [
+        "codon",
+        "divergence",
+        "faywu",
+        "fst",
+        "fufs",
+        "fuliout",
+        "indel",
+        "kaks",
+        "ld",
+        "mk",
+        "polymorphism",
+        "popsize",
+        "recombination",
+        "sfs",
+        "tstv"
+      ],
+      "completed": [
+        "codon",
+        "divergence",
+        "faywu",
+        "fst",
+        "fufs",
+        "fuliout",
+        "indel",
+        "kaks",
+        "ld",
+        "mk",
+        "polymorphism",
+        "popsize",
+        "recombination",
+        "sfs",
+        "tstv"
+      ],
+      "skipped": {}
+    },
+    "variant_sites_only": false,
+    "artifacts": [
+      "figures/codon_usage.png",
+      "figures/fst.png",
+      "figures/ld_decay.png",
+      "figures/mismatch.png",
+      "figures/sfs.png",
+      "figures/summary.png",
+      "ld_pairs.tsv",
+      "report.md",
+      "results.tsv",
+      "summary.json"
+    ]
+  },
+  "chat_summary_lines": [
+    "DnaSP demo_input.fas: n = 10, net sites 300, S = 5, pi = 0.00689, Tajima's D = 0.6789.",
+    "Analyses completed: codon, divergence, faywu, fst, fufs, fuliout, indel, kaks, ld, mk, polymorphism, popsize, recombination, sfs, tstv."
+  ],
+  "preferred_artifacts": [
+    "report.md",
+    "summary.json",
+    "results.tsv",
+    "figures/codon_usage.png",
+    "figures/fst.png",
+    "figures/ld_decay.png",
+    "figures/mismatch.png",
+    "figures/sfs.png",
+    "figures/summary.png"
+  ]
+}
+""", 'results.tsv': """\
+DnaSP-Python	Source:	demo_input.fas	Date:	<TIMESTAMP>
+
+Region	Sample_Size	Sites	NetSites	S	Eta	Hap	Hd	VarHd	Pi	ThetaK	G+Ctot	ThetaWattNuc	ThetaWatt	TajimaD	FuLiD*	FuLiF*	Ramos-Onsins_Rozas_R2	Midpoint
+1-300	10	300	300	5	5	8	0.9555555556	0.003528888889	0.006888888889	2.066666667	0.3216666667	0.005891429373	1.767428812	0.6788926655	1.300113039	1.286661186	0.2066666667	n.a.
+""", 'summary.json': """\
+{
+  "global": {
+    "region": "1-300",
+    "n": 10,
+    "L_total": 300,
+    "L_net": 300,
+    "S": 5,
+    "Eta": 5,
+    "H": 8,
+    "Hd": 0.9555555555555556,
+    "VarHd": 0.00352888888888889,
+    "Pi": 0.00688888888888889,
+    "k": 2.066666666666667,
+    "GC": 0.32166666666666666,
+    "ThetaW": 1.7674288118950763,
+    "ThetaW_nuc": 0.005891429372983588,
+    "TajimaD": 0.6788926654574243,
+    "FuLiD_star": 1.300113038923171,
+    "FuLiF_star": 1.2866611863346276,
+    "R2": 0.2066666666666667,
+    "midpoint": null
+  },
+  "windows": [],
+  "ld": {
+    "n_biallelic": 5,
+    "n_pairs": 10,
+    "ZnS": 0.11061507936507937,
+    "Za": 0.16294642857142858,
+    "ZZ": 0.0523313492063492
+  },
+  "recombination": {
+    "Rm": 1,
+    "n_incompatible_pairs": 3
+  },
+  "popsize": {
+    "observed": {
+      "0": 2,
+      "1": 11,
+      "2": 18,
+      "3": 10,
+      "4": 4
+    },
+    "n_pairs": 45,
+    "mean": 2.066666666666667,
+    "variance": 1.018181818181818,
+    "raggedness": 0.1214814814814815,
+    "cv": 0.5004562292779846
+  },
+  "indel": {
+    "n_positions_with_gaps": 0,
+    "net_sites": 300,
+    "n_excluded_events": 0,
+    "n_excluded_overlap_sites": 0,
+    "n_missing_sites": 0,
+    "n_fixed_gap_sites": 0,
+    "mean_deletion_length": 0.0,
+    "n_events": 0,
+    "mean_event_length": 0.0,
+    "n_haplotypes": 0,
+    "haplotype_diversity": 0.0,
+    "k_indel": 0.0,
+    "pi_indel": 0.0,
+    "theta_indel": 0.0,
+    "tajima_d_indel": null,
+    "events": []
+  },
+  "divergence": {
+    "pop1_name": "Pop1",
+    "pop2_name": "Pop2",
+    "n1": 5,
+    "n2": 5,
+    "L_net": 300,
+    "Pi1": 0.006,
+    "Pi2": 0.007333333333333334,
+    "k1": 1.8,
+    "k2": 2.2,
+    "Dxy": 0.007066666666666667,
+    "Da": 0.0004000000000000002,
+    "n_fixed": 0,
+    "n_shared": 2,
+    "n_private1": 1,
+    "n_private2": 2
+  },
+  "fuliout": {
+    "n": 10,
+    "S": 5,
+    "eta": 5,
+    "eta_e": 0,
+    "k_bar": 2.066666666666667,
+    "D": 1.3639274837433302,
+    "F": 1.4130414205161763
+  },
+  "hka": null,
+  "mk": {
+    "Pn": 2,
+    "Ps": 3,
+    "Dn": 2,
+    "Ds": 1,
+    "alpha": 0.6666666666666667,
+    "NI": 0.3333333333333333,
+    "DoS": 0.2666666666666666,
+    "fisher_p": 0.9999999999999982,
+    "n_complex_codons": 0,
+    "n_internal_stop_codons": 0
+  },
+  "kaks": {
+    "n_codons": 100,
+    "S_sites": 64.0,
+    "N_sites": 236.0,
+    "Sd": 1.9,
+    "Nd": 2.4,
+    "Ks": 0.030291045678966046,
+    "Ka": 0.010239066876245491,
+    "omega": 0.33802289246671496,
+    "n_internal_stop_codons": 0
+  },
+  "fufs": {
+    "n": 10,
+    "H": 8,
+    "theta_pi": 2.066666666666667,
+    "S_k": 0.0070567504811286175,
+    "Fs": -4.946688838124387
+  },
+  "sfs": {
+    "n": 10,
+    "folded": {
+      "3": 1,
+      "2": 3,
+      "4": 1
+    },
+    "unfolded": {
+      "3": 1,
+      "2": 3,
+      "4": 1
+    },
+    "has_outgroup": true,
+    "n_multiallelic_excluded": 0
+  },
+  "tstv": {
+    "n": 10,
+    "L_net": 300,
+    "n_sites": 5,
+    "n_transitions": 4,
+    "n_transversions": 1,
+    "ts_tv": 4.0,
+    "n_multiallelic_excluded": 0,
+    "n_unpolarisable_excluded": 0,
+    "polarised": true
+  },
+  "codon": {
+    "n": 10,
+    "n_codons": 100.0,
+    "codon_counts": {
+      "TTT": 4.5,
+      "TTC": 0.5,
+      "TTA": 0.0,
+      "TTG": 4.0,
+      "CTT": 4.0,
+      "CTC": 0.0,
+      "CTA": 0.0,
+      "CTG": 0.0,
+      "ATT": 4.0,
+      "ATC": 4.0,
+      "ATA": 4.0,
+      "ATG": 4.0,
+      "GTT": 5.0,
+      "GTC": 0.0,
+      "GTA": 0.0,
+      "GTG": 0.0,
+      "TCT": 5.0,
+      "TCC": 0.0,
+      "TCA": 0.0,
+      "TCG": 0.0,
+      "CCT": 4.0,
+      "CCC": 0.0,
+      "CCA": 0.0,
+      "CCG": 0.0,
+      "ACT": 5.0,
+      "ACC": 0.0,
+      "ACA": 0.0,
+      "ACG": 0.0,
+      "GCT": 4.6,
+      "GCC": 0.4,
+      "GCA": 0.0,
+      "GCG": 0.0,
+      "TAT": 4.0,
+      "TAC": 0.0,
+      "TAA": 0.0,
+      "TAG": 0.0,
+      "CAT": 4.0,
+      "CAC": 0.0,
+      "CAA": 3.8,
+      "CAG": 0.0,
+      "AAT": 4.2,
+      "AAC": 0.0,
+      "AAA": 5.2,
+      "AAG": 0.0,
+      "GAT": 3.8,
+      "GAC": 0.0,
+      "GAA": 5.0,
+      "GAG": 0.0,
+      "TGT": 4.0,
+      "TGC": 0.0,
+      "TGA": 0.0,
+      "TGG": 4.0,
+      "CGT": 4.0,
+      "CGC": 0.0,
+      "CGA": 0.0,
+      "CGG": 0.0,
+      "AGT": 0.0,
+      "AGC": 0.0,
+      "AGA": 0.0,
+      "AGG": 0.0,
+      "GGT": 5.0,
+      "GGC": 0.0,
+      "GGA": 0.0,
+      "GGG": 0.0
+    },
+    "rscu": {
+      "TTT": 1.8,
+      "TTC": 0.2,
+      "TTA": 0.0,
+      "TTG": 3.0,
+      "CTT": 3.0,
+      "CTC": 0.0,
+      "CTA": 0.0,
+      "CTG": 0.0,
+      "ATT": 1.0,
+      "ATC": 1.0,
+      "ATA": 1.0,
+      "ATG": 1.0,
+      "GTT": 4.0,
+      "GTC": 0.0,
+      "GTA": 0.0,
+      "GTG": 0.0,
+      "TCT": 6.0,
+      "TCC": 0.0,
+      "TCA": 0.0,
+      "TCG": 0.0,
+      "AGT": 0.0,
+      "AGC": 0.0,
+      "CCT": 4.0,
+      "CCC": 0.0,
+      "CCA": 0.0,
+      "CCG": 0.0,
+      "ACT": 4.0,
+      "ACC": 0.0,
+      "ACA": 0.0,
+      "ACG": 0.0,
+      "GCT": 3.68,
+      "GCC": 0.32,
+      "GCA": 0.0,
+      "GCG": 0.0,
+      "TAT": 2.0,
+      "TAC": 0.0,
+      "CAT": 2.0,
+      "CAC": 0.0,
+      "CAA": 2.0,
+      "CAG": 0.0,
+      "AAT": 2.0,
+      "AAC": 0.0,
+      "AAA": 2.0,
+      "AAG": 0.0,
+      "GAT": 2.0,
+      "GAC": 0.0,
+      "GAA": 2.0,
+      "GAG": 0.0,
+      "TGT": 2.0,
+      "TGC": 0.0,
+      "TGG": 1.0,
+      "CGT": 6.0,
+      "CGC": 0.0,
+      "CGA": 0.0,
+      "CGG": 0.0,
+      "AGA": 0.0,
+      "AGG": 0.0,
+      "GGT": 4.0,
+      "GGC": 0.0,
+      "GGA": 0.0,
+      "GGG": 0.0,
+      "TAA": 0.0,
+      "TAG": 0.0,
+      "TGA": 0.0
+    },
+    "ENC": 23.736329172720655,
+    "per_sequence_enc": {
+      "pop1_seq1": 23.372549019607845,
+      "pop1_seq2": 23.807331628303498,
+      "pop1_seq3": 24.22593627946629,
+      "pop1_seq4": 23.791153670770637,
+      "pop1_seq5": 23.372549019607845,
+      "pop2_seq1": 23.372549019607845,
+      "pop2_seq2": 23.791153670770637,
+      "pop2_seq3": 24.015406162464988,
+      "pop2_seq4": 23.807331628303498,
+      "pop2_seq5": 23.807331628303498
+    }
+  },
+  "faywu": {
+    "n": 10,
+    "L_net": 300,
+    "n_polarised": 5,
+    "theta_pi": 0.00688888888888889,
+    "theta_w": 0.005891429372983588,
+    "theta_h": 0.0027407407407407406,
+    "theta_l": 0.004814814814814814,
+    "H": 0.004148148148148149,
+    "E": -0.0010766145581687734
+  },
+  "fst": {
+    "n_pops": 2,
+    "pop_names": [
+      "Pop1",
+      "Pop2"
+    ],
+    "pop_sizes": {
+      "Pop1": 5,
+      "Pop2": 5
+    },
+    "pi_within": {
+      "Pop1": 0.006,
+      "Pop2": 0.007333333333333334
+    },
+    "pi_between": {
+      "[\\"Pop1\\", \\"Pop2\\"]": 0.007066666666666667
+    },
+    "fst_pairwise": {
+      "[\\"Pop1\\", \\"Pop2\\"]": 0.05660377358490565
+    },
+    "fst_mean": 0.05660377358490565
+  },
+  "analysis_status": {
+    "requested": [
+      "codon",
+      "divergence",
+      "faywu",
+      "fst",
+      "fufs",
+      "fuliout",
+      "indel",
+      "kaks",
+      "ld",
+      "mk",
+      "polymorphism",
+      "popsize",
+      "recombination",
+      "sfs",
+      "tstv"
+    ],
+    "completed": [
+      "codon",
+      "divergence",
+      "faywu",
+      "fst",
+      "fufs",
+      "fuliout",
+      "indel",
+      "kaks",
+      "ld",
+      "mk",
+      "polymorphism",
+      "popsize",
+      "recombination",
+      "sfs",
+      "tstv"
+    ],
+    "skipped": {}
+  },
+  "variant_sites_only": false
+}
+"""})
