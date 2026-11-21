@@ -239,3 +239,55 @@ def test_demo_outputs_raises_with_the_demo_stderr_when_it_fails(catalog, tmp_pat
 def test_demo_outputs_match_across_runs_into_different_dirs(writer_demo, tmp_path):
     # The writer echoes the output folder's bare name, as equity's report.md does.
     assert demo_runner.demo_outputs(writer_demo, tmp_path / "a") == demo_runner.demo_outputs(writer_demo, tmp_path / "b")
+
+
+# --- rounding away floating-point noise ----------------------------------------
+# A library upgrade can move a computed float in its last bit (scipy 1.18's
+# moment code moved drug-repurposing-screen's bimodality_coef from
+# 0.41691191789245413 to 0.4169119178924542). round_floats lets a snapshot pin
+# the first N significant digits instead, so it fails on real changes only.
+
+def test_round_floats_rounds_only_long_decimals():
+    text = "BRD-0015,other,0.5,0.635056282655958,0.41691191789245413,1.0,10\n"
+    assert demo_runner.round_floats(text, 12) == "BRD-0015,other,0.5,0.635056282656,0.416911917892,1.0,10\n"
+
+
+def test_round_floats_absorbs_a_last_bit_change():
+    before, after = "bc 0.41691191789245413", "bc 0.4169119178924542"
+    assert demo_runner.round_floats(before, 12) == demo_runner.round_floats(after, 12)
+
+
+def test_round_floats_still_sees_a_real_change():
+    assert demo_runner.round_floats("bc 0.4169119178", 6) != demo_runner.round_floats("bc 0.4169919178", 6)
+
+
+@pytest.mark.parametrize("text", [
+    "numpy 2.5.4", "10.0.0.1", "rs3798220-C", "GCST90002370", "1.00e-45", "p=5.00e-22",
+    "x1.234567890123456", "1.234567890123456y", "v1.2345678901234567.8",
+])
+def test_round_floats_leaves_versions_ids_and_short_numbers_alone(text):
+    assert demo_runner.round_floats(text, 12) == text
+
+
+@given(st.floats(allow_nan=False, allow_infinity=False, width=64))
+@example(0.41691191789245413)
+@example(-0.00045888077361219204)
+@example(1e-300)
+def test_property_round_floats_keeps_n_significant_digits(x):
+    text = repr(x)
+    out = demo_runner.round_floats(text, 12)
+    assert demo_runner.round_floats(out, 12) == out  # idempotent
+    assert float(out) == pytest.approx(x, rel=5e-12, abs=0.0) or float(out) == x
+
+
+def test_demo_outputs_rounds_floats_only_when_asked(catalog, tmp_path):
+    script = tmp_path / "floats.py"
+    script.write_text(
+        "import sys\nfrom pathlib import Path\n"
+        "out = Path(sys.argv[sys.argv.index('--output') + 1]); out.mkdir(parents=True)\n"
+        "(out / 'r.csv').write_text('a,0.41691191789245413\\n')\n"
+    )
+    name = catalog("floats", f"python {script}")
+
+    assert demo_runner.demo_outputs(name, tmp_path / "a") == {"r.csv": "a,0.41691191789245413\n"}
+    assert demo_runner.demo_outputs(name, tmp_path / "b", float_digits=12) == {"r.csv": "a,0.416911917892\n"}

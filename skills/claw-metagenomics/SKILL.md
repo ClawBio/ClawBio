@@ -58,7 +58,7 @@ metadata:
     description: Publication-quality figures (taxonomy bar chart, resistome heatmap, WHO-critical ARG summary)
   - name: reproducibility
     type: directory
-    description: commands.sh, environment.yml, checksums.sha256
+    description: commands.sh (replays the run into its own output directory), environment.yml, checksums.sha256 (every output, relative to the output directory), and inputs.json (SHA-256 of each input FASTQ; real runs only)
   openclaw:
     category: bioinformatics
     emoji: 🦠
@@ -229,7 +229,7 @@ Figures saved to: demo_report/figures/
   who_critical_args.png (300 dpi)
 
 Reproducibility:
-  commands.sh | environment.yml | checksums.sha256
+  commands.sh | environment.yml | checksums.sha256 | inputs.json (real runs)
 ```
 
 ## Pipeline Architecture
