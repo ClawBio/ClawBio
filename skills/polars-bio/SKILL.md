@@ -60,7 +60,7 @@ metadata:
         - ndjson
       description: Result table (NDJSON fallback for nested columns)
   dependencies:
-    python: ">=3.11,<3.15"
+    python: ">=3.12,<3.15"
     packages:
       - polars-bio
       - matplotlib

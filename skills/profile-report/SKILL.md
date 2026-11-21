@@ -160,7 +160,7 @@ hash itself.
 ## Dependencies
 
 **Required**:
-- Python 3.11+ with the repo core environment
+- Python 3.12+ with the repo core environment
 
 No skill-specific pip dependencies are added. `environment.yml` records the Python
 minor version used for the run, but replay in another checkout still requires the

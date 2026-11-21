@@ -15,7 +15,7 @@ metadata:
   - h5ad
   - preprocessing
   dependencies:
-    python: '>=3.11'
+    python: '>=3.12'
     packages:
     - pyyaml
   endpoints:

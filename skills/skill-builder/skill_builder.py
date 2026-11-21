@@ -615,7 +615,7 @@ def _md_deps(deps: dict) -> str:
         # are present the skill is plainly not stdlib-only, so the phrase is
         # misleading — say "none required" instead.
         lines.append(
-            "- Python 3.11+ standard library only — no external packages"
+            "- Python 3.12+ standard library only — no external packages"
             if not opt
             else "- None required (pure stdlib)"
         )
@@ -881,7 +881,6 @@ def generate_skill_py(spec: dict) -> str:
             write_environment_yml(
                 output_dir,
                 env_name="{name}",
-                python_version="3.11",
                 pip_deps={pip_deps_repr},
                 conda_deps=[],
             )
@@ -1710,7 +1709,6 @@ def write_skill_builder_report(
     write_environment_yml(
         output_dir,
         env_name="clawbio-skill-builder",
-        python_version="3.11",
         pip_deps=[],
         conda_deps=[],
     )

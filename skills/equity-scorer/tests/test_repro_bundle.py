@@ -73,7 +73,7 @@ def test_environment_yml_pins_skill_versions(tmp_path):
     assert "numpy>=1.24" in content
     assert "scikit-learn>=1.3" in content
     assert "matplotlib>=3.7" in content
-    assert "python=3.11" in content
+    assert "python=3.12" in content
 
 
 def test_checksums_verify_from_output_dir(tmp_path):

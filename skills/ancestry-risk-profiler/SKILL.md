@@ -61,7 +61,7 @@ metadata:
         - json
       description: SHA256 source-hash manifest for genotype input, aisnp_panel.csv, and ancestry_risk_associations.json
   dependencies:
-    python: ">=3.11"
+    python: ">=3.12"
     packages:
       - matplotlib>=3.6
   demo_data:

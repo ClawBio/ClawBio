@@ -28,7 +28,7 @@ metadata:
   - path: examples/demo_output/report.md
     description: Pre-generated demo report for 5 clinically relevant variants
   dependencies:
-    python: '>=3.11'
+    python: '>=3.12'
     packages: null
   domain: genomics
   emoji: 🧬

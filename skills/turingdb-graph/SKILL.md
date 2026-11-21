@@ -45,7 +45,7 @@ metadata:
     - json
     description: Structured JSON summary (counts, stats, query results).
   dependencies:
-    python: '>=3.11'
+    python: '>=3.12'
     packages:
     - turingdb>=1.29
     - pandas>=2.0

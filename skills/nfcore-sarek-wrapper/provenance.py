@@ -368,7 +368,7 @@ def _build_environment_yml(
         "  - conda-forge",
         "  - bioconda",
         "dependencies:",
-        "  - python=3.11",
+        "  - python=3.12",
         f"  - {nf_dep}",
         "  - openjdk=17",
         "",

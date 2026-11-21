@@ -101,7 +101,6 @@ def create_reproducibility_bundle(
         output_dir,
         env_name="clawbio-gwas-prs",
         pip_deps=list(REPLAY_PIP_DEPENDENCIES),
-        python_version="3.11",
     )
 
     provenance_path = output_dir / "reproducibility" / "provenance.json"

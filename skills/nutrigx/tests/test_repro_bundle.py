@@ -58,7 +58,7 @@ def test_environment_yml_in_reproducibility_dir(tmp_path):
     assert env_path.exists()
     content = env_path.read_text()
     assert "name: nutrigx" in content
-    assert "python=3.11" in content
+    assert "python=3.12" in content
     assert "clawbio==0.1.0" in content
 
 

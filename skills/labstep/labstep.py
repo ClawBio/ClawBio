@@ -218,7 +218,6 @@ def _write_reproducibility(output_dir: Path, repro_args: list[str]) -> None:
         output_dir,
         env_name="clawbio-labstep",
         pip_deps=["labstep>=3.0"],
-        python_version="3.11",
     )
     write_portable_commands_sh(
         output_dir,

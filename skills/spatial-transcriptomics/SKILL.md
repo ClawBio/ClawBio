@@ -35,7 +35,7 @@ metadata:
         - json
       description: Machine-readable summary
   dependencies:
-    python: ">=3.11"
+    python: ">=3.12"
     packages:
       - scanpy>=1.10
       - leidenalg>=0.10

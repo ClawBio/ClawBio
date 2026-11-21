@@ -348,7 +348,7 @@ python "$REPO_ROOT/skills/lit-synthesizer/lit_synthesizer.py" \\
 channels:
   - defaults
 dependencies:
-  - python=3.11
+  - python=3.12
   - pip
   - pip:
     - biopython>=1.83

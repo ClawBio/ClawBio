@@ -53,7 +53,7 @@ metadata:
         - json
       description: Machine-readable version of the report
   dependencies:
-    python: ">=3.11"
+    python: ">=3.12"
     packages:
       - pyyaml>=6.0
   demo_data:
