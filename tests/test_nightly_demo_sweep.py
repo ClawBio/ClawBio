@@ -82,6 +82,45 @@ def test_run_demo_checks_the_contract_before_removing_a_temp_output_dir(monkeypa
     assert result["contract_gaps"] == {}
 
 
+def test_a_demo_output_holding_the_checkout_path_is_a_gap(monkeypatch, tmp_path):
+    # The demo snapshots mask only the output dir and skip reproducibility/ and binaries,
+    # so a report recording where the user's checkout lives passes them.
+    sweep = _load_sweep_module()
+    checkout = tmp_path / "home" / "alice" / "ClawBio"
+    monkeypatch.setattr(sweep, "PROJECT_ROOT", checkout)
+
+    def fake_run_demo(name, output_dir, *, timeout):
+        _write_bundle(output_dir)
+        (output_dir / "report.md").write_text(f"Input: {checkout}/skills/x/demo.vcf\n")
+        (output_dir / "reproducibility" / "commands.sh").write_text(f"cd {checkout}\n")
+        (output_dir / "figure.png").write_bytes(b"\x89PNG\x00" + str(checkout).encode())
+        (output_dir / "result.json").write_text('{"input": "demo.vcf"}\n')
+        return {"name": name, "passed": True}
+
+    monkeypatch.setattr(sweep.demo_runner, "run_demo", fake_run_demo)
+
+    result = sweep.run_demo({"name": "x"}, timeout=30, output_dir=tmp_path / "out")
+
+    assert result["contract_gaps"] == {"checkout_path": (
+        "the checkout path is written into figure.png, report.md, reproducibility/commands.sh")}
+
+
+def test_an_output_dir_inside_the_checkout_may_name_itself(monkeypatch, tmp_path):
+    sweep = _load_sweep_module()
+    monkeypatch.setattr(sweep, "PROJECT_ROOT", tmp_path)
+
+    def fake_run_demo(name, output_dir, *, timeout):
+        _write_bundle(output_dir)
+        (output_dir / "report.md").write_text(f"Figures in {output_dir}/figures\n")
+        return {"name": name, "passed": True}
+
+    monkeypatch.setattr(sweep.demo_runner, "run_demo", fake_run_demo)
+
+    result = sweep.run_demo({"name": "x"}, timeout=30, output_dir=tmp_path / "out")
+
+    assert result["contract_gaps"] == {}
+
+
 def _result(name, gaps, passed=True):
     return {"name": name, "passed": passed, "contract_gaps": gaps}
 

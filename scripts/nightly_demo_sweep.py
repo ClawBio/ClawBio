@@ -47,7 +47,10 @@ REPRO_BUNDLE_FILES = ("commands.sh", "environment.yml", "checksums.sha256")
 # The skill run contract (AGENTS.md). skills/contract_known_gaps.json maps each skill to
 # the checks it fails today. It only shrinks: a skill failing a check not listed for it fails, and a listed check it
 # now passes fails until it is removed.
-SWEEP_CHECKS = {"repro_files"}  # reproducibility/ holds REPRO_BUNDLE_FILES
+SWEEP_CHECKS = {
+    "repro_files",    # reproducibility/ holds REPRO_BUNDLE_FILES
+    "checkout_path",  # no output file contains the checkout's absolute path
+}
 CONTRACT_KNOWN_GAPS_FILE = PROJECT_ROOT / "skills" / "contract_known_gaps.json"
 CONTRACT_KNOWN_GAPS = {
     skill: set(checks) for skill, checks in json.loads(CONTRACT_KNOWN_GAPS_FILE.read_text()).items()
@@ -168,7 +171,26 @@ def contract_gaps(skill_out: Path) -> dict[str, str]:
     missing = [f for f in REPRO_BUNDLE_FILES if not (skill_out / "reproducibility" / f).is_file()]
     if missing:
         gaps["repro_files"] = "reproducibility/ is missing " + ", ".join(missing)
+    leaking = files_containing(skill_out, PROJECT_ROOT)
+    if leaking:
+        gaps["checkout_path"] = "the checkout path is written into " + ", ".join(leaking)
     return gaps
+
+
+def files_containing(skill_out: Path, path: Path) -> list[str]:
+    """Output files, relative to skill_out, whose bytes contain `path`.
+
+    The demo snapshots mask only the output directory, and skip reproducibility/ and
+    binary files, so they do not catch a report that records where the user's checkout
+    (and with it their home folder) lives. Every file is read here, binary included.
+    Mentions of skill_out itself are ignored, in case it sits inside `path`.
+    """
+    needle, own = str(path).encode(), str(skill_out).encode()
+    return sorted(
+        f.relative_to(skill_out).as_posix()
+        for f in skill_out.rglob("*")
+        if f.is_file() and needle in f.read_bytes().replace(own, b"")
+    )
 
 
 def contract_regressions(results: list[dict], known: dict[str, set[str]] = CONTRACT_KNOWN_GAPS) -> list[str]:
