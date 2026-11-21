@@ -165,6 +165,7 @@ fails every PR.
 
 - **Python**: 3.12+ (type hints encouraged, `X | None` syntax over `Optional[X]`)
 - **Paths**: Always use `pathlib.Path`. Derive from `Path(__file__).resolve().parent`. Never hardcode absolute paths.
+- **Paths in outputs**: Reports and `result.json` must not contain the absolute path of an input. Record the file name, or a path relative to the working directory. Reports are shared, and an absolute path carries the user's name and folder layout. `reproducibility/commands.sh` is the exception: replay needs real paths.
 - **Naming**: Skill folders use lowercase-hyphens (`gwas-lookup`). Python files use lowercase_underscores (`gwas_lookup.py`).
 - **Imports**: Sibling modules loaded via `importlib.util.spec_from_file_location` — no package structure. Bare-name imports (`import foo`) share `sys.modules` across skills, so give skill-level modules names unique across skills (`nutrigx_repro_bundle.py`, not `repro_bundle.py`).
 - **CLI**: Every skill script accepts `--input`, `--output`, and `--demo`. Use `argparse`. Write only under `--output`, never the current directory or the skill folder; the nightly sweep runs every demo with `--output` and fails if anything lands in the checkout.
