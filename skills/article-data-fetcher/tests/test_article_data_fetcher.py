@@ -220,7 +220,9 @@ def test_demo_bundle_verifies_and_replays(demo_run, tmp_path: Path) -> None:
     copy, elsewhere = tmp_path / "copy", tmp_path / "elsewhere"
     shutil.copytree(out, copy)
     elsewhere.mkdir()
-    env = _offline_env() | {"PYTHON": sys.executable}
+    # The bundle no longer records the checkout path (#901); replayed from outside
+    # a ClawBio clone, it finds the skill through CLAWBIO_ROOT.
+    env = _offline_env() | {"PYTHON": sys.executable, "CLAWBIO_ROOT": str(SCRIPT.parents[2])}
     subprocess.run(["bash", str(copy / "reproducibility" / "commands.sh")], check=True,
                    capture_output=True, cwd=elsewhere, stdin=subprocess.DEVNULL, env=env, timeout=120)
     # The replay rewrites the bundle; its checksums verify against its own outputs
