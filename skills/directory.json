@@ -1614,6 +1614,31 @@
       ]
     },
     {
+      "name": "multiomics-locus-integrator",
+      "slug": "multiomics-locus-integrator",
+      "license": "MIT",
+      "description": "Integrate chromatin accessibility, histone marks, and 3D-contact (TAD/loop) evidence at a genomic locus into one scored regulatory-evidence table, with target genes assigned by proximity or loop contact.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "multiomics integration",
+        "multi-omic",
+        "ATAC H3K27ac integration",
+        "chromatin loop target gene",
+        "enhancer gene evidence",
+        "integrate chromatin and variant evidence",
+        "regulatory evidence scoring",
+        "TAD loop locus integration"
+      ],
+      "tags": [
+        "multiomics",
+        "chromatin",
+        "regulatory-genomics",
+        "enhancer",
+        "3d-genome",
+        "locus-annotation"
+      ]
+    },
+    {
       "name": "multiqc-reporter",
       "slug": "multiqc-reporter",
       "license": "MIT",
