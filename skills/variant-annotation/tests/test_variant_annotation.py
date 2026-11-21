@@ -310,6 +310,25 @@ def test_write_outputs_and_report_generation(tmp_path, record_template, vep_entr
     assert "research and educational tool" in report
 
 
+def test_reproducibility_commands_are_portable(tmp_path):
+    """commands.sh replays from any clone: no bare script name, no machine paths."""
+    out = tmp_path / "out"
+    args = argparse.Namespace(
+        demo=True,
+        assembly="GRCh38",
+        batch_size=200,
+        no_cache=False,
+        cache_dir=va.DEFAULT_CACHE_DIR,
+    )
+    text = va.write_reproducibility_bundle(out, args, va.DEFAULT_DEMO_INPUT).read_text()
+    assert '"$CLAWBIO_ROOT/skills/variant-annotation/variant_annotation.py"' in text
+    assert "--demo" in text and '"$OUTPUT_DIR"' in text
+    assert str(out) not in text
+    assert str(Path.home()) not in text  # the default cache dir is not recorded
+    assert (out / "reproducibility" / "environment.yml").is_file()
+    assert (out / "commands.sh").read_text() == text
+
+
 def test_write_reproducibility_bundle(tmp_path):
     args = argparse.Namespace(
         demo=False,
@@ -319,11 +338,11 @@ def test_write_reproducibility_bundle(tmp_path):
         cache_dir=str(tmp_path / "cache"),
     )
     commands_path = va.write_reproducibility_bundle(tmp_path, args, DEMO_VCF)
-    text = commands_path.read_text()
-    assert "--input" in text
-    assert str(DEMO_VCF) in text
-    assert "--batch-size 123" in text
-    assert "--cache-dir" in text
+    flat = " ".join(commands_path.read_text().replace("\\\n", " ").split())
+    assert "--input" in flat
+    assert '"$CLAWBIO_ROOT/skills/variant-annotation/example_data/' in flat
+    assert "--batch-size 123" in flat
+    assert f'--cache-dir "{(tmp_path / "cache").resolve()}"' in flat  # a custom cache is kept
 
 
 @needs_pysam
@@ -405,7 +424,16 @@ def test_run_pipeline_writes_expected_files(tmp_path, monkeypatch):
     output_dir = Path(result["output_dir"])
     assert (output_dir / "report.md").exists()
     assert (output_dir / "tables" / "annotated_variants.tsv").exists()
-    assert (output_dir / "reproducibility" / "commands.sh").exists()
+    repro = output_dir / "reproducibility"
+    for name in ("commands.sh", "environment.yml", "checksums.sha256"):
+        assert (repro / name).is_file(), name
+    lines = (repro / "checksums.sha256").read_text().splitlines()
+    labels = {line.split("  ", 1)[1] for line in lines}
+    assert {"report.md", "result.json", "tables/annotated_variants.tsv"} <= labels
+    for line in lines:
+        digest, label = line.split("  ", 1)
+        assert not Path(label).is_absolute()
+        assert digest == va.sha256_file(output_dir / label), label
 
     payload = json.loads((output_dir / "result.json").read_text())
     assert payload["skill"] == "variant-annotation"

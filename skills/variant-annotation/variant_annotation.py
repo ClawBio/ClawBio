@@ -8,11 +8,9 @@ import csv
 import hashlib
 import importlib
 import json
-import shlex
 import sys
 import time
 from collections import Counter
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -1448,32 +1446,55 @@ def write_reproducibility_bundle(
     args: argparse.Namespace,
     input_path: Path,
 ) -> Path:
-    repro_dir = output_dir / "reproducibility"
-    repro_dir.mkdir(parents=True, exist_ok=True)
+    """Write reproducibility/commands.sh and environment.yml with the shared helpers.
 
-    parts = ["python", Path(__file__).name]
-    if args.demo:
-        parts.append("--demo")
-    else:
-        parts.extend(["--input", str(input_path)])
-    parts.extend(["--output", str(output_dir)])
-    parts.extend(["--assembly", args.assembly, "--batch-size", str(args.batch_size)])
-    if args.no_cache:
-        parts.append("--no-cache")
-    elif args.cache_dir:
-        parts.extend(["--cache-dir", str(args.cache_dir)])
-
-    commands_path = repro_dir / "commands.sh"
-    command_text = (
-        "#!/usr/bin/env bash\n"
-        f"# Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}\n"
-        f"{' '.join(shlex.quote(part) for part in parts)}\n"
+    checksums.sha256 is written separately by write_bundle_checksums, after every
+    output exists. A copy of commands.sh also goes to <output>/commands.sh, which
+    result.json lists as `root_commands`.
+    """
+    from clawbio.common.reproducibility import (
+        ReproCommand,
+        ReproPath,
+        write_environment_yml,
+        write_portable_commands_sh,
     )
-    commands_path.write_text(command_text)
 
-    root_commands_path = output_dir / "commands.sh"
-    root_commands_path.write_text(command_text)
+    out = Path(output_dir).resolve()
+    run_args: list = ["--demo"] if args.demo else [
+        "--input", ReproPath(Path(input_path).resolve(), anchor="repo_root")
+    ]
+    run_args += ["--output", ReproPath(out, anchor="output_dir")]
+    run_args += ["--assembly", args.assembly, "--batch-size", str(args.batch_size)]
+    if args.no_cache:
+        run_args.append("--no-cache")
+    elif args.cache_dir and Path(args.cache_dir) != DEFAULT_CACHE_DIR:
+        # The default lives in the home folder; it is the default on replay too.
+        run_args += ["--cache-dir", ReproPath(Path(args.cache_dir).resolve())]
+
+    commands_path = write_portable_commands_sh(
+        out,
+        ReproCommand(
+            script_path=Path(__file__).resolve().relative_to(_PROJECT_ROOT),
+            args=run_args,
+            comment="Reproduce this variant-annotation run",
+        ),
+        repo_root=_PROJECT_ROOT,
+    )
+    write_environment_yml(
+        out,
+        env_name="clawbio-variant-annotation",
+        pip_deps=["pysam>=0.22", "requests", "matplotlib"],
+    )
+    (out / "commands.sh").write_text(commands_path.read_text())
     return commands_path
+
+
+def write_bundle_checksums(output_dir: Path, outputs: list[Path]) -> Path:
+    """Write reproducibility/checksums.sha256 last, over this run's outputs only."""
+    from clawbio.common.reproducibility import write_checksums
+
+    out = Path(output_dir).resolve()
+    return write_checksums([Path(p).resolve() for p in outputs], out, anchor=out)
 
 
 def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
@@ -1513,8 +1534,7 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
         figure_path=figure_path,
     )
 
-    print("Writing reproducibility bundle...")
-    commands_path = write_reproducibility_bundle(output_dir, args, input_path)
+    commands_path = output_dir / "reproducibility" / "commands.sh"
 
     clinically_relevant = summary_data["clinically_relevant"]
     pathogenic = summary_data["pathogenic"]
@@ -1565,6 +1585,13 @@ def run_pipeline(args: argparse.Namespace) -> dict[str, Any]:
             },
             "disclaimer": DISCLAIMER,
         },
+    )
+
+    print("Writing reproducibility bundle...")
+    write_reproducibility_bundle(output_dir, args, input_path)
+    write_bundle_checksums(
+        output_dir,
+        [report_path, tsv_path, output_dir / "result.json"] + ([figure_path] if figure_path else []),
     )
 
     return {
