@@ -41,7 +41,7 @@ def with_output(argv: list[str], output: Path) -> list[str]:
 
 
 def _demo_command(name: str) -> str:
-    for skill in json.loads(CATALOG.read_text())["skills"]:
+    for skill in json.loads(CATALOG.read_text(encoding="utf-8"))["skills"]:
         if skill["name"] == name and skill.get("demo_command"):
             return skill["demo_command"]
     raise LookupError(f"{name} has no demo_command in {CATALOG.name}")
