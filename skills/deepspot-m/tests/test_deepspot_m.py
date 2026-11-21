@@ -18,6 +18,8 @@ import types
 from pathlib import Path
 
 import pytest
+from inline_snapshot import snapshot
+from clawbio.common import demo_runner
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 MODULE_PATH = SKILL_DIR / "deepspot_m.py"
@@ -981,3 +983,210 @@ def test_importing_the_module_does_not_import_the_model_stack():
         check=True,
     )
     assert result.stdout.strip() == "[]"
+
+
+# ── Demo output snapshot ──────────────────────────────────────────────────────
+# Fails when a code change alters any demo number. If the change is intended,
+# run `pytest skills/deepspot-m/tests --inline-snapshot=fix`; it rewrites the
+# snapshot() values below, and the PR diff shows which numbers moved.
+
+@pytest.mark.demo_snapshot
+def test_demo_output_matches_snapshot(tmp_path):
+    assert demo_runner.demo_outputs("deepspot-m", tmp_path) == snapshot({'report.md': """\
+# DeepSpot-M Virtual Spatial Transcriptomics Report (demo)
+
+**Date**: <TIMESTAMP> UTC
+**Tile**: demo_tile.png
+**Tile size**: 224x224 px, cut at native (~20x) resolution
+**Microns per pixel**: not declared (pass --mpp, or use a tile whose resolution tags carry it)
+**Model**: ratschlab/DeepSpotM @ 86113ee43124
+**Gene embedding source**: scgpt
+**Unit**: log1p-CPM
+**Genes scored**: 10
+
+> Demo mode. The values below come from the bundled offline fixture `examples/demo_expression.json`, not from a model run. They exist so the report format, the CSV schema and the reproducibility bundle can be inspected without the model weights.
+
+## Fixture Expression
+
+Genes appear in the order they were requested.
+
+| Gene | Expression (log1p-CPM) |
+|------|------------------------|
+| EPCAM | 5.82 |
+| KRT19 | 5.41 |
+| COL1A1 | 4.97 |
+| VIM | 4.63 |
+| ACTA2 | 3.88 |
+| PTPRC | 3.42 |
+| CD68 | 2.91 |
+| CD3D | 2.14 |
+| CD8A | 1.76 |
+| MKI67 | 1.35 |
+
+## How to Read These Values
+
+DeepSpot-M predicts relative expression, so a value means something next to the same gene in another tile, not next to a different gene in this one. Ordering the genes in this table by value would largely recover each gene's average abundance in the training data rather than anything specific to this fixture. `tables/gene_expression.csv` carries a `rank` column for convenience; it inherits that caveat.
+
+Upstream states the following limitations, quoted from the "Limitations and biases" section of the model card:
+
+- Trained on a finite set of cancer indications.
+- Performance on unseen tissue types, stains, scanners or resolutions may degrade.
+- Predicts relative expression rather than absolute counts.
+- Under-sequenced genes are predicted less reliably.
+- Trained on oncology cohorts, so it is not representative of healthy tissue or non-oncology contexts.
+- Not for clinical or diagnostic use.
+
+## Output Files
+
+| File | Description |
+|------|-------------|
+| `result.json` | Machine-readable per-gene values and run parameters |
+| `tables/gene_expression.csv` | Gene table, one row per gene |
+| `reproducibility/commands.sh` | Exact command that produced this run |
+| `reproducibility/environment.yml` | Conda and pip environment snapshot |
+| `reproducibility/checksums.sha256` | SHA-256 digests of the outputs |
+
+---
+
+*ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.*
+""", 'result.json': """\
+{
+  "skill": "deepspot-m",
+  "model": "ratschlab/DeepSpotM",
+  "model_revision": "86113ee431248c892d25cf55e1f8017cccec2926",
+  "unit": "log1p-CPM",
+  "demo": true,
+  "tile": "demo_tile.png",
+  "source": "scgpt",
+  "tile_size_px": 224,
+  "microns_per_pixel": null,
+  "microns_per_pixel_source": null,
+  "microns_per_pixel_warning": null,
+  "requested_genes": [
+    "EPCAM",
+    "KRT19",
+    "COL1A1",
+    "VIM",
+    "ACTA2",
+    "PTPRC",
+    "CD68",
+    "CD3D",
+    "CD8A",
+    "MKI67"
+  ],
+  "tile_mean_pixel": 187.29,
+  "tile_mean_saturation": 0.2915,
+  "tile_warnings": [],
+  "genes": [
+    "EPCAM",
+    "KRT19",
+    "COL1A1",
+    "VIM",
+    "ACTA2",
+    "PTPRC",
+    "CD68",
+    "CD3D",
+    "CD8A",
+    "MKI67"
+  ],
+  "expression": {
+    "EPCAM": 5.82,
+    "KRT19": 5.41,
+    "COL1A1": 4.97,
+    "VIM": 4.63,
+    "ACTA2": 3.88,
+    "PTPRC": 3.42,
+    "CD68": 2.91,
+    "CD3D": 2.14,
+    "CD8A": 1.76,
+    "MKI67": 1.35
+  },
+  "ranked": [
+    {
+      "gene": "EPCAM",
+      "expression": 5.82,
+      "unit": "log1p-CPM",
+      "rank": 1
+    },
+    {
+      "gene": "KRT19",
+      "expression": 5.41,
+      "unit": "log1p-CPM",
+      "rank": 2
+    },
+    {
+      "gene": "COL1A1",
+      "expression": 4.97,
+      "unit": "log1p-CPM",
+      "rank": 3
+    },
+    {
+      "gene": "VIM",
+      "expression": 4.63,
+      "unit": "log1p-CPM",
+      "rank": 4
+    },
+    {
+      "gene": "ACTA2",
+      "expression": 3.88,
+      "unit": "log1p-CPM",
+      "rank": 5
+    },
+    {
+      "gene": "PTPRC",
+      "expression": 3.42,
+      "unit": "log1p-CPM",
+      "rank": 6
+    },
+    {
+      "gene": "CD68",
+      "expression": 2.91,
+      "unit": "log1p-CPM",
+      "rank": 7
+    },
+    {
+      "gene": "CD3D",
+      "expression": 2.14,
+      "unit": "log1p-CPM",
+      "rank": 8
+    },
+    {
+      "gene": "CD8A",
+      "expression": 1.76,
+      "unit": "log1p-CPM",
+      "rank": 9
+    },
+    {
+      "gene": "MKI67",
+      "expression": 1.35,
+      "unit": "log1p-CPM",
+      "rank": 10
+    }
+  ],
+  "interpretation": {
+    "cross_gene_comparison": "Values are comparable for one gene across tiles. Comparing different genes within one tile largely recovers each gene's average abundance in the training data.",
+    "per_gene_uncertainty": null,
+    "uncertainty_note": "The checkpoint returns one point estimate per gene and no confidence, interval, variance or out-of-distribution score. null here means none was computed, not that the estimate is certain.",
+    "upstream_limitations": [
+      "Trained on a finite set of cancer indications.",
+      "Performance on unseen tissue types, stains, scanners or resolutions may degrade.",
+      "Predicts relative expression rather than absolute counts.",
+      "Under-sequenced genes are predicted less reliably.",
+      "Trained on oncology cohorts, so it is not representative of healthy tissue or non-oncology contexts.",
+      "Not for clinical or diagnostic use."
+    ]
+  }
+}
+""", 'tables/gene_expression.csv': """\
+gene,expression_log1p_cpm,unit,rank,provenance,model,model_revision
+EPCAM,5.82,log1p-CPM,1,demo_fixture,ratschlab/DeepSpotM,86113ee431248c892d25cf55e1f8017cccec2926
+KRT19,5.41,log1p-CPM,2,demo_fixture,ratschlab/DeepSpotM,86113ee431248c892d25cf55e1f8017cccec2926
+COL1A1,4.97,log1p-CPM,3,demo_fixture,ratschlab/DeepSpotM,86113ee431248c892d25cf55e1f8017cccec2926
+VIM,4.63,log1p-CPM,4,demo_fixture,ratschlab/DeepSpotM,86113ee431248c892d25cf55e1f8017cccec2926
+ACTA2,3.88,log1p-CPM,5,demo_fixture,ratschlab/DeepSpotM,86113ee431248c892d25cf55e1f8017cccec2926
+PTPRC,3.42,log1p-CPM,6,demo_fixture,ratschlab/DeepSpotM,86113ee431248c892d25cf55e1f8017cccec2926
+CD68,2.91,log1p-CPM,7,demo_fixture,ratschlab/DeepSpotM,86113ee431248c892d25cf55e1f8017cccec2926
+CD3D,2.14,log1p-CPM,8,demo_fixture,ratschlab/DeepSpotM,86113ee431248c892d25cf55e1f8017cccec2926
+CD8A,1.76,log1p-CPM,9,demo_fixture,ratschlab/DeepSpotM,86113ee431248c892d25cf55e1f8017cccec2926
+MKI67,1.35,log1p-CPM,10,demo_fixture,ratschlab/DeepSpotM,86113ee431248c892d25cf55e1f8017cccec2926
+"""})

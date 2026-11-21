@@ -15,6 +15,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from inline_snapshot import snapshot
+from clawbio.common import demo_runner
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 SCRIPT = SKILL_DIR / "geo_fetch.py"
@@ -448,3 +450,389 @@ class TestOutputContract:
         assert not missing, (
             "SKILL.md Output Structure promises artifacts the skill did not "
             "produce: " + ", ".join(missing))
+
+
+# ── Demo output snapshot ──────────────────────────────────────────────────────
+# Fails when a code change alters any demo number. If the change is intended,
+# run `pytest skills/geo-fetch/tests --inline-snapshot=fix`; it rewrites the
+# snapshot() values below, and the PR diff shows which numbers moved.
+
+@pytest.mark.demo_snapshot
+def test_demo_output_matches_snapshot(tmp_path):
+    assert demo_runner.demo_outputs("geo-fetch", tmp_path) == snapshot({'download_geo.sh': """\
+#!/bin/bash
+#
+#SBATCH --job-name=fastq_download
+# #SBATCH --partition=<your_partition>   # set for your cluster
+# #SBATCH --account=<your_account>        # set if required
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=4G
+#SBATCH --time=24:00:00
+#SBATCH --output=slurm-%j.out
+#SBATCH --error=slurm-%j.err
+# #SBATCH --mail-type=END,FAIL
+# #SBATCH --mail-user=<you@example.org>
+
+set -euo pipefail
+
+OUTDIR=fastq
+mkdir -p "$OUTDIR"
+
+# curl >= 7.71 retries HTTP errors (403/429/503) too, not just network
+# failures. Older curl rejects the flag outright, so probe before using it.
+RETRY_ALL=""
+if curl --help all 2>/dev/null | grep -q -- --retry-all-errors; then
+  RETRY_ALL="--retry-all-errors"
+fi
+
+# sample: SAMN00668211
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309145.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309145/SRR309145.fastq.gz
+
+# sample: SAMN00668212
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309146.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309146/SRR309146.fastq.gz
+
+# sample: SAMN00668213
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309147.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309147/SRR309147.fastq.gz
+
+# sample: SAMN00668214
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309148.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309148/SRR309148.fastq.gz
+
+# sample: SAMN00668215
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309149.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309149/SRR309149.fastq.gz
+
+# sample: SAMN00668216
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309150.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309150/SRR309150.fastq.gz
+
+# sample: SAMN00668217
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309151.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309151/SRR309151.fastq.gz
+
+# sample: SAMN00668218
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309152.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309152/SRR309152.fastq.gz
+
+# sample: SAMN00668219
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309153.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309153/SRR309153.fastq.gz
+
+# sample: SAMN00668220
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309154.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309154/SRR309154.fastq.gz
+
+# sample: SAMN00668221
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309155.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309155/SRR309155.fastq.gz
+
+# sample: SAMN00668222
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309156.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309156/SRR309156.fastq.gz
+
+# sample: SAMN00668223
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309157.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309157/SRR309157.fastq.gz
+
+# sample: SAMN00668224
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309158.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309158/SRR309158.fastq.gz
+
+# sample: SAMN00668225
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309159.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309159/SRR309159.fastq.gz
+
+# sample: SAMN00668226
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309160.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309160/SRR309160.fastq.gz
+
+# sample: SAMN00668227
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309161.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309161/SRR309161.fastq.gz
+
+# sample: SAMN00668228
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309162.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309162/SRR309162.fastq.gz
+
+# sample: SAMN00668229
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309163.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309163/SRR309163.fastq.gz
+
+# sample: SAMN00668230
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309164.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309164/SRR309164.fastq.gz
+
+# sample: SAMN00668231
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309165.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309165/SRR309165.fastq.gz
+
+# sample: SAMN00668232
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309166.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309166/SRR309166.fastq.gz
+
+# sample: SAMN00668233
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309167.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309167/SRR309167.fastq.gz
+
+# sample: SAMN00668234
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309168.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309168/SRR309168.fastq.gz
+
+# sample: SAMN00668235
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309169.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309169/SRR309169.fastq.gz
+
+# sample: SAMN00668236
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309170.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309170/SRR309170.fastq.gz
+
+# sample: SAMN00668237
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309171.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309171/SRR309171.fastq.gz
+
+# sample: SAMN00668238
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309172.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309172/SRR309172.fastq.gz
+
+# sample: SAMN00668239
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309173.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309173/SRR309173.fastq.gz
+
+# sample: SAMN00668240
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309174.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309174/SRR309174.fastq.gz
+
+# sample: SAMN00668241
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309175.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309175/SRR309175.fastq.gz
+
+# sample: SAMN00668242
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309176.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309176/SRR309176.fastq.gz
+
+# sample: SAMN00668243
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309177.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309177/SRR309177.fastq.gz
+
+# sample: SAMN00668244
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309178.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309178/SRR309178.fastq.gz
+
+# sample: SAMN00668245
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309179.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309179/SRR309179.fastq.gz
+
+# sample: SAMN00668246
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309180.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309180/SRR309180.fastq.gz
+
+# sample: SAMN00668247
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309181.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309181/SRR309181.fastq.gz
+
+# sample: SAMN00668248
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309182.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309182/SRR309182.fastq.gz
+
+# sample: SAMN00668249
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309183.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309183/SRR309183.fastq.gz
+
+# sample: SAMN00668250
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309184.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309184/SRR309184.fastq.gz
+
+# sample: SAMN00668251
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309185.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309185/SRR309185.fastq.gz
+
+# sample: SAMN00668252
+curl -fsSL --retry 5 --retry-delay 10 $RETRY_ALL --connect-timeout 30 --speed-limit 1024 --speed-time 120 -C - --create-dirs -o "$OUTDIR"/SRR309186.fastq.gz https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309186/SRR309186.fastq.gz
+
+echo "Downloaded 42 file(s) to $OUTDIR"
+""", 'report.md': """\
+# GEO report — GSE30720
+
+Source: [Gene Expression Omnibus](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE30720)
+
+## metadata
+
+```
+accession   : GSE30720
+title       : Seedling transcriptome sequencing of the Arabidopsis thaliana MAGIC founder accessions
+taxon       : Arabidopsis thaliana
+gdstype     : Expression profiling by high throughput sequencing
+gpl         : 11221
+n_samples   : 42
+pdat        : 2011/08/29
+summary     : We have sequenced messenger RNA isolated from seedling tissue for 19 accessions of Arabidopsis thaliana (with biological replication).  The 19 accessions for which RNA-Seq reads were collected have served as the founders for the MAGIC lines, a high-resolution recombinant inbred line mapping resource.  RNA sequencing data was used to examine differential gene expression among the accessions.
+```
+
+## samples
+
+```
+GSM762080	ct_1_seedling_br1
+GSM762100	sf_2_seedling_br1
+GSM762097	po_0_seedling_br2
+GSM762103	tsu_0_seedling_br2
+GSM762077	can_0_seedling_br2
+GSM762083	edi_0_seedling_br2
+GSM762109	wu_0_seedling_br2
+GSM762086	kn_0_seedling_br1
+GSM762089	ler_0_seedling_br2
+GSM762108	wu_0_seedling_br1
+GSM762106	ws_0_seedling_br1
+GSM762082	edi_0_seedling_br1
+GSM762102	tsu_0_seedling_br1
+GSM762105	wil_2_seedling_br2
+GSM762071	col_0_seedling_tr2
+GSM762085	hi_0_seedling_br2
+GSM762091	mt_0_seedling_br2
+GSM762094	oy_0_seedling_br1
+GSM762111	zu_0_seedling_br2
+GSM762110	zu_0_seedling_br1
+GSM762074	bur_0_seedling_br1
+GSM762107	ws_0_seedling_br2
+GSM762088	ler_0_seedling_br1
+GSM762090	mt_0_seedling_br1
+GSM762070	col_0_seedling_tr1
+GSM762099	rsch_4_seedling_br2
+GSM762073	col_0_seedling_tr4
+GSM762076	can_0_seedling_br1
+GSM762087	kn_0_seedling_br2
+GSM762081	ct_1_seedling_br2
+GSM762079	col_0_seedling_br2
+GSM762084	hi_0_seedling_br1
+GSM762092	no_0_seedling_br1
+GSM762093	no_0_seedling_br2
+GSM762072	col_0_seedling_tr3
+GSM762078	col_0_seedling_br1
+GSM762075	bur_0_seedling_br2
+GSM762096	po_0_seedling_br1
+GSM762095	oy_0_seedling_br2
+GSM762101	sf_2_seedling_br2
+GSM762104	wil_2_seedling_br1
+GSM762098	rsch_4_seedling_br1
+```
+
+## files
+
+```
+[matrix]
+  https://ftp.ncbi.nlm.nih.gov/geo/series/GSE30nnn/GSE30720/matrix/GSE30720_series_matrix.txt.gz
+[soft]
+  https://ftp.ncbi.nlm.nih.gov/geo/series/GSE30nnn/GSE30720/soft/GSE30720_family.soft.gz
+[miniml]
+  https://ftp.ncbi.nlm.nih.gov/geo/series/GSE30nnn/GSE30720/miniml/GSE30720_family.xml.tgz
+[suppl]
+  https://ftp.ncbi.nlm.nih.gov/geo/series/GSE30nnn/GSE30720/suppl/GSE30720_RAW.tar
+  https://ftp.ncbi.nlm.nih.gov/geo/series/GSE30nnn/GSE30720/suppl/filelist.txt
+```
+
+## metadata-table
+
+```
+Wrote 42 sample row(s) x 10 column(s) for GSE30720 to <output>/tables/metadata.tsv
+```
+
+## samplesheet
+
+```
+GSE30720 -> SRA project PRJNA154687
+Wrote 42 row(s) for 42 sample(s) to <output>/samplesheet.csv (nf-core/rnaseq)
+```
+
+## download-script
+
+```
+Wrote download_geo.sh: 42 download command(s) using curl.
+Nothing has been downloaded. Run it with --run, submit it with --submit, or execute it yourself.
+```
+
+---
+
+*ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.*
+""", 'result.json': """\
+{
+  "status": "ok",
+  "ok": true,
+  "skill": "geo-fetch",
+  "version": "0.1.0",
+  "completed_at": "<TIMESTAMP>",
+  "input_checksum": "",
+  "datasets": {},
+  "summary": {
+    "accession": "GSE30720",
+    "commands": [
+      "metadata",
+      "samples",
+      "files",
+      "metadata-table",
+      "samplesheet",
+      "download-script"
+    ],
+    "demo": true,
+    "ncbi_credentials_sent": false
+  },
+  "data": {
+    "sections": {
+      "metadata": "accession   : GSE30720\\ntitle       : Seedling transcriptome sequencing of the Arabidopsis thaliana MAGIC founder accessions\\ntaxon       : Arabidopsis thaliana\\ngdstype     : Expression profiling by high throughput sequencing\\ngpl         : 11221\\nn_samples   : 42\\npdat        : 2011/08/29\\nsummary     : We have sequenced messenger RNA isolated from seedling tissue for 19 accessions of Arabidopsis thaliana (with biological replication).  The 19 accessions for which RNA-Seq reads were collected have served as the founders for the MAGIC lines, a high-resolution recombinant inbred line mapping resource.  RNA sequencing data was used to examine differential gene expression among the accessions.\\n",
+      "samples": "GSM762080\\tct_1_seedling_br1\\nGSM762100\\tsf_2_seedling_br1\\nGSM762097\\tpo_0_seedling_br2\\nGSM762103\\ttsu_0_seedling_br2\\nGSM762077\\tcan_0_seedling_br2\\nGSM762083\\tedi_0_seedling_br2\\nGSM762109\\twu_0_seedling_br2\\nGSM762086\\tkn_0_seedling_br1\\nGSM762089\\tler_0_seedling_br2\\nGSM762108\\twu_0_seedling_br1\\nGSM762106\\tws_0_seedling_br1\\nGSM762082\\tedi_0_seedling_br1\\nGSM762102\\ttsu_0_seedling_br1\\nGSM762105\\twil_2_seedling_br2\\nGSM762071\\tcol_0_seedling_tr2\\nGSM762085\\thi_0_seedling_br2\\nGSM762091\\tmt_0_seedling_br2\\nGSM762094\\toy_0_seedling_br1\\nGSM762111\\tzu_0_seedling_br2\\nGSM762110\\tzu_0_seedling_br1\\nGSM762074\\tbur_0_seedling_br1\\nGSM762107\\tws_0_seedling_br2\\nGSM762088\\tler_0_seedling_br1\\nGSM762090\\tmt_0_seedling_br1\\nGSM762070\\tcol_0_seedling_tr1\\nGSM762099\\trsch_4_seedling_br2\\nGSM762073\\tcol_0_seedling_tr4\\nGSM762076\\tcan_0_seedling_br1\\nGSM762087\\tkn_0_seedling_br2\\nGSM762081\\tct_1_seedling_br2\\nGSM762079\\tcol_0_seedling_br2\\nGSM762084\\thi_0_seedling_br1\\nGSM762092\\tno_0_seedling_br1\\nGSM762093\\tno_0_seedling_br2\\nGSM762072\\tcol_0_seedling_tr3\\nGSM762078\\tcol_0_seedling_br1\\nGSM762075\\tbur_0_seedling_br2\\nGSM762096\\tpo_0_seedling_br1\\nGSM762095\\toy_0_seedling_br2\\nGSM762101\\tsf_2_seedling_br2\\nGSM762104\\twil_2_seedling_br1\\nGSM762098\\trsch_4_seedling_br1\\n",
+      "files": "[matrix]\\n  https://ftp.ncbi.nlm.nih.gov/geo/series/GSE30nnn/GSE30720/matrix/GSE30720_series_matrix.txt.gz\\n[soft]\\n  https://ftp.ncbi.nlm.nih.gov/geo/series/GSE30nnn/GSE30720/soft/GSE30720_family.soft.gz\\n[miniml]\\n  https://ftp.ncbi.nlm.nih.gov/geo/series/GSE30nnn/GSE30720/miniml/GSE30720_family.xml.tgz\\n[suppl]\\n  https://ftp.ncbi.nlm.nih.gov/geo/series/GSE30nnn/GSE30720/suppl/GSE30720_RAW.tar\\n  https://ftp.ncbi.nlm.nih.gov/geo/series/GSE30nnn/GSE30720/suppl/filelist.txt\\n",
+      "metadata-table": "Wrote 42 sample row(s) x 10 column(s) for GSE30720 to <output>/tables/metadata.tsv\\n",
+      "samplesheet": "GSE30720 -> SRA project PRJNA154687\\nWrote 42 row(s) for 42 sample(s) to <output>/samplesheet.csv (nf-core/rnaseq)\\n",
+      "download-script": "Wrote download_geo.sh: 42 download command(s) using curl.\\nNothing has been downloaded. Run it with --run, submit it with --submit, or execute it yourself."
+    }
+  }
+}\
+""", 'samplesheet.csv': """\
+sample,fastq_1,fastq_2,strandedness
+SAMN00668211,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309145/SRR309145.fastq.gz,,auto
+SAMN00668212,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309146/SRR309146.fastq.gz,,auto
+SAMN00668213,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309147/SRR309147.fastq.gz,,auto
+SAMN00668214,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309148/SRR309148.fastq.gz,,auto
+SAMN00668215,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309149/SRR309149.fastq.gz,,auto
+SAMN00668216,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309150/SRR309150.fastq.gz,,auto
+SAMN00668217,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309151/SRR309151.fastq.gz,,auto
+SAMN00668218,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309152/SRR309152.fastq.gz,,auto
+SAMN00668219,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309153/SRR309153.fastq.gz,,auto
+SAMN00668220,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309154/SRR309154.fastq.gz,,auto
+SAMN00668221,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309155/SRR309155.fastq.gz,,auto
+SAMN00668222,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309156/SRR309156.fastq.gz,,auto
+SAMN00668223,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309157/SRR309157.fastq.gz,,auto
+SAMN00668224,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309158/SRR309158.fastq.gz,,auto
+SAMN00668225,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309159/SRR309159.fastq.gz,,auto
+SAMN00668226,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309160/SRR309160.fastq.gz,,auto
+SAMN00668227,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309161/SRR309161.fastq.gz,,auto
+SAMN00668228,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309162/SRR309162.fastq.gz,,auto
+SAMN00668229,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309163/SRR309163.fastq.gz,,auto
+SAMN00668230,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309164/SRR309164.fastq.gz,,auto
+SAMN00668231,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309165/SRR309165.fastq.gz,,auto
+SAMN00668232,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309166/SRR309166.fastq.gz,,auto
+SAMN00668233,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309167/SRR309167.fastq.gz,,auto
+SAMN00668234,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309168/SRR309168.fastq.gz,,auto
+SAMN00668235,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309169/SRR309169.fastq.gz,,auto
+SAMN00668236,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309170/SRR309170.fastq.gz,,auto
+SAMN00668237,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309171/SRR309171.fastq.gz,,auto
+SAMN00668238,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309172/SRR309172.fastq.gz,,auto
+SAMN00668239,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309173/SRR309173.fastq.gz,,auto
+SAMN00668240,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309174/SRR309174.fastq.gz,,auto
+SAMN00668241,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309175/SRR309175.fastq.gz,,auto
+SAMN00668242,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309176/SRR309176.fastq.gz,,auto
+SAMN00668243,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309177/SRR309177.fastq.gz,,auto
+SAMN00668244,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309178/SRR309178.fastq.gz,,auto
+SAMN00668245,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309179/SRR309179.fastq.gz,,auto
+SAMN00668246,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309180/SRR309180.fastq.gz,,auto
+SAMN00668247,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309181/SRR309181.fastq.gz,,auto
+SAMN00668248,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309182/SRR309182.fastq.gz,,auto
+SAMN00668249,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309183/SRR309183.fastq.gz,,auto
+SAMN00668250,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309184/SRR309184.fastq.gz,,auto
+SAMN00668251,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309185/SRR309185.fastq.gz,,auto
+SAMN00668252,https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR309/SRR309186/SRR309186.fastq.gz,,auto
+""", 'tables/metadata.tsv': """\
+sample	replicate	species	sex	age	condition	genotype	treatment	tissue	accession
+GSM762080	biological replicate 1	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Ct-1
+GSM762100	biological replicate 1	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Sf-2
+GSM762097	biological replicate 2	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Po-0
+GSM762103	biological replicate 2	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Tsu-0
+GSM762077	biological replicate 2	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Can-0
+GSM762083	biological replicate 2	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Edi-0
+GSM762109	biological replicate 2	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Wu-0
+GSM762086	biological replicate 1	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Kn-0
+GSM762089	biological replicate 2	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Ler-0
+GSM762108	biological replicate 1	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Wu-0
+GSM762106	biological replicate 1	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Ws-0
+GSM762082	biological replicate 1	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Edi-0
+GSM762102	biological replicate 1	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Tsu-0
+GSM762105	biological replicate 2	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Wil-2
+GSM762071	technical replicate 2	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Col-0
+GSM762085	biological replicate 2	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Hi-0
+GSM762091	biological replicate 2	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Mt-0
+GSM762094	biological replicate 1	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Oy-0
+GSM762111	biological replicate 2	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Zu-0
+GSM762110	biological replicate 1	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Zu-0
+GSM762074	biological replicate 1	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Bur-0
+GSM762107	biological replicate 2	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Ws-0
+GSM762088	biological replicate 1	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Ler-0
+GSM762090	biological replicate 1	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Mt-0
+GSM762070	technical replicate 1	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Col-0
+GSM762099	biological replicate 2	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Rsch-4
+GSM762073	technical replicate 4	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Col-0
+GSM762076	biological replicate 1	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Can-0
+GSM762087	biological replicate 2	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Kn-0
+GSM762081	biological replicate 2	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Ct-1
+GSM762079	biological replicate 2	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Col-0
+GSM762084	biological replicate 1	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Hi-0
+GSM762092	biological replicate 1	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	No-0
+GSM762093	biological replicate 2	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	No-0
+GSM762072	technical replicate 3	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Col-0
+GSM762078	biological replicate 1	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Col-0
+GSM762075	biological replicate 2	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Bur-0
+GSM762096	biological replicate 1	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Po-0
+GSM762095	biological replicate 2	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Oy-0
+GSM762101	biological replicate 2	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Sf-2
+GSM762104	biological replicate 1	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Wil-2
+GSM762098	biological replicate 1	Arabidopsis thaliana	NA	11 days	NA	NA	NA	seedling	Rsch-4
+"""})

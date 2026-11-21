@@ -14,6 +14,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from inline_snapshot import snapshot
+from clawbio.common import demo_runner
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 SCRIPT = SKILL_DIR / "biostudies_fetch.py"
@@ -395,3 +397,91 @@ class TestDownloadBase:
 
         with patch.object(api, "get_json", return_value={"httpLink": link}):
             assert api.file_url("S-B1", "b.txt") == f"{api.FILES}/S-B1/b.txt"
+
+
+# ── Demo output snapshot ──────────────────────────────────────────────────────
+# Fails when a code change alters any demo number. If the change is intended,
+# run `pytest skills/biostudies-fetch/tests --inline-snapshot=fix`; it rewrites the
+# snapshot() values below, and the PR diff shows which numbers moved.
+
+@pytest.mark.demo_snapshot
+def test_demo_output_matches_snapshot(tmp_path):
+    assert demo_runner.demo_outputs("biostudies-fetch", tmp_path) == snapshot({'report.md': """\
+# BioStudies report — S-BSST2074
+
+Source: [EMBL-EBI BioStudies](https://www.ebi.ac.uk/biostudies/studies/S-BSST2074)
+
+## metadata
+
+```
+accession : S-BSST2074
+Title     : An mm10-based reference genome N-masked in positions of SNPs between Mus musculus and three other mouse species
+ReleaseDate: 2026-08-14
+Title     : An mm10-based reference genome N-masked in positions of SNPs between Mus musculus and three other mouse species
+Description: The aim was to analyze scRNAseq data from four distinct mouse species: Mus musculus strains C57BL/6J and Ly5.1, (BL6), Mus musculus castaneus, Mus spretus, and Mus caroli. We generated a 10X Genomics Cell Ranger (Zheng et al. 2017) reference to align all four species, based on the well-annotated mm10 genome (version M23, Ensembl release 98) as described here: https://github.com/fritjoflammers/snakemake-snpmasked-refgenome.git (https://doi.org/10.5281/zenodo.15516917). SNP positions between BL6 and the other species were obtained from Keane et al. (2011) and Stefflova et al. (2013), incorporated into a merged bed file, and SNP positions were masked with Ns in the mm10 fasta file. From this file, the 10X Genomics Cell Ranger mkref (v6.1.1) function (Zheng et al. 2017) was used to generate the shared reference for alignment. \n\
+Organism  : Mus caroli
+
+files     : 1 file entries (run `files S-BSST2074` to list)
+```
+
+## files
+
+```
+1 file(s) for S-BSST2074:
+
+GRCm38_masked_allStrains.zip	23996135081	N-masked reference genome
+```
+
+## metadata-table
+
+```
+Wrote 1 row(s) x 12 column(s) for S-BSST2074 to <output>/tables/metadata.tsv (no per-sample structure; used study-level attributes)
+```
+
+## search
+
+```
+271771 total hits; showing 5:
+
+S-BSST2074       An mm10-based reference genome N-masked in positions of SNPs between Mus musculus and three other mouse species
+S-EPMC5374595    Visualization of consensus genome structure without using a reference genome.
+S-EPMC7265644    Assembly and annotation of an Ashkenazi human reference genome.
+S-EPMC9509377    A chromosome-scale reference genome for Spironucleus salmonicida.
+S-EPMC5123046    An ethnically relevant consensus Korean reference genome is a step towards personal reference genomes.
+```
+
+---
+
+*ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.*
+""", 'result.json': """\
+{
+  "status": "ok",
+  "ok": true,
+  "skill": "biostudies-fetch",
+  "version": "0.1.0",
+  "completed_at": "<TIMESTAMP>",
+  "input_checksum": "",
+  "datasets": {},
+  "summary": {
+    "accession": "S-BSST2074",
+    "commands": [
+      "metadata",
+      "files",
+      "metadata-table",
+      "search"
+    ],
+    "demo": true
+  },
+  "data": {
+    "sections": {
+      "metadata": "accession : S-BSST2074\\nTitle     : An mm10-based reference genome N-masked in positions of SNPs between Mus musculus and three other mouse species\\nReleaseDate: 2026-08-14\\nTitle     : An mm10-based reference genome N-masked in positions of SNPs between Mus musculus and three other mouse species\\nDescription: The aim was to analyze scRNAseq data from four distinct mouse species: Mus musculus strains C57BL/6J and Ly5.1, (BL6), Mus musculus castaneus, Mus spretus, and Mus caroli. We generated a 10X Genomics Cell Ranger (Zheng et al. 2017) reference to align all four species, based on the well-annotated mm10 genome (version M23, Ensembl release 98) as described here: https://github.com/fritjoflammers/snakemake-snpmasked-refgenome.git (https://doi.org/10.5281/zenodo.15516917). SNP positions between BL6 and the other species were obtained from Keane et al. (2011) and Stefflova et al. (2013), incorporated into a merged bed file, and SNP positions were masked with Ns in the mm10 fasta file. From this file, the 10X Genomics Cell Ranger mkref (v6.1.1) function (Zheng et al. 2017) was used to generate the shared reference for alignment. \\nOrganism  : Mus caroli\\n\\nfiles     : 1 file entries (run `files S-BSST2074` to list)\\n",
+      "files": "1 file(s) for S-BSST2074:\\n\\nGRCm38_masked_allStrains.zip\\t23996135081\\tN-masked reference genome\\n",
+      "metadata-table": "Wrote 1 row(s) x 12 column(s) for S-BSST2074 to <output>/tables/metadata.tsv (no per-sample structure; used study-level attributes)\\n",
+      "search": "271771 total hits; showing 5:\\n\\nS-BSST2074       An mm10-based reference genome N-masked in positions of SNPs between Mus musculus and three other mouse species\\nS-EPMC5374595    Visualization of consensus genome structure without using a reference genome.\\nS-EPMC7265644    Assembly and annotation of an Ashkenazi human reference genome.\\nS-EPMC9509377    A chromosome-scale reference genome for Spironucleus salmonicida.\\nS-EPMC5123046    An ethnically relevant consensus Korean reference genome is a step towards personal reference genomes.\\n"
+    }
+  }
+}\
+""", 'tables/metadata.tsv': """\
+sample	replicate	species	sex	age	condition	genotype	treatment	tissue	releasedate	description	license
+S-BSST2074	1	Mus caroli	NA	NA	NA	NA	NA	NA	2026-08-14	The aim was to analyze scRNAseq data from four distinct mouse species: Mus musculus strains C57BL/6J and Ly5.1, (BL6), Mus musculus castaneus, Mus spretus, and Mus caroli. We generated a 10X Genomics Cell Ranger (Zheng et al. 2017) reference to align all four species, based on the well-annotated mm10 genome (version M23, Ensembl release 98) as described here: https://github.com/fritjoflammers/snakemake-snpmasked-refgenome.git (https://doi.org/10.5281/zenodo.15516917). SNP positions between BL6 and the other species were obtained from Keane et al. (2011) and Stefflova et al. (2013), incorporated into a merged bed file, and SNP positions were masked with Ns in the mm10 fasta file. From this file, the 10X Genomics Cell Ranger mkref (v6.1.1) function (Zheng et al. 2017) was used to generate the shared reference for alignment.	CC0
+"""})

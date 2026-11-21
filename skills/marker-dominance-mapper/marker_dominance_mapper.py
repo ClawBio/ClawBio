@@ -184,7 +184,7 @@ def write_outputs(result: dict, input_path: Path, output_dir: Path, demo: bool) 
     rows = [
         "# Marker Dominance Mapper Report",
         "",
-        f"**Input**: `{input_path}`",
+        f"**Input**: `{Path(input_path).name}`",
         f"**Mode**: {'Synthetic demo data' if demo else 'User-provided local data'}",
         f"**Spots mapped**: {result['summary']['spot_count']}",
         f"**Hotspots**: {result['summary']['hotspot_count']}",

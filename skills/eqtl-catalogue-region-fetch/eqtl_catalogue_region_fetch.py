@@ -844,9 +844,11 @@ def main(argv: list[str] | None = None) -> int:
     }
     try:
         import yaml as _yaml
-        (args.output / "manifest.yaml").write_text(_yaml.safe_dump(manifest, sort_keys=False))
+        manifest_path = args.output / "manifest.yaml"
+        manifest_path.write_text(_yaml.safe_dump(manifest, sort_keys=False))
     except ImportError:
-        (args.output / "manifest.json").write_text(json.dumps(manifest, indent=2, default=str))
+        manifest_path = args.output / "manifest.json"
+        manifest_path.write_text(json.dumps(manifest, indent=2, default=str))
 
     report = [
         "# eqtl-catalogue-region-fetch report",
@@ -862,6 +864,9 @@ def main(argv: list[str] | None = None) -> int:
         f"- **Output TSV:** {tsv_path.name}",
     ]
     (args.output / "report.md").write_text("\n".join(report) + "\n")
+    _write_repro_bundle(
+        args, [args.output / name for name in outputs.values()] + [manifest_path, args.output / "report.md"]
+    )
 
     print(f"eqtl-catalogue-region-fetch: {result.n_variants} variants -> {tsv_path}")
     print(f"  {collapse_line}")
@@ -877,6 +882,45 @@ def main(argv: list[str] | None = None) -> int:
 # starting with `_` are annotations (`_description` in the bundled examples).
 CONFIG_KEYS_REQUIRED = ("dataset_id", "chromosome", "start_bp", "end_bp")
 CONFIG_KEYS_OPTIONAL = ("molecular_trait_id", "study_id", "file_class")
+
+
+def _write_repro_bundle(args: argparse.Namespace, outputs: list[Path]) -> None:
+    """Write <output>/reproducibility/ via clawbio.common.reproducibility."""
+    repo_root = Path(__file__).resolve().parents[2]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+    from clawbio.common.reproducibility import (
+        ReproCommand,
+        ReproPath,
+        write_checksums,
+        write_environment_yml,
+        write_portable_commands_sh,
+    )
+
+    out = args.output.resolve()
+    if args.demo is not None:
+        run_args: list = ["--demo"] + ([] if args.demo == "__default__" else [args.demo])
+    else:
+        run_args = ["--input", ReproPath(args.input.resolve(), anchor="repo_root")]
+    run_args += ["--output", ReproPath(out, anchor="output_dir")]
+    if args.no_cache:
+        run_args.append("--no-cache")
+    write_portable_commands_sh(
+        out,
+        ReproCommand(
+            script_path=Path(__file__).resolve().relative_to(repo_root),
+            args=run_args,
+            comment="Reproduce this eqtl-catalogue-region-fetch run",
+        ),
+        repo_root=repo_root,
+    )
+    write_environment_yml(
+        out,
+        env_name="clawbio-eqtl-catalogue-region-fetch",
+        pip_deps=["pysam>=0.22", "pyyaml"],
+    )
+    # Last, so it covers this run's outputs and nothing left by earlier runs.
+    write_checksums([p.resolve() for p in outputs], out, anchor=out)
 
 
 def _validate_config(cfg: dict) -> dict:
