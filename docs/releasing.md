@@ -53,10 +53,9 @@ uv venv /tmp/cb && uv pip install --python /tmp/cb/bin/python dist/clawbio-*.whl
 ## Publish to PyPI (automated: one tag push)
 
 Releases are published automatically by `.github/workflows/publish.yml` when a
-`v*` tag is pushed. It authenticates with an API token for now; see
-[Current state](#current-state-api-token-trusted-publisher-registered-but-untested)
-below. PyPI release names and versions are permanent and cannot be reused, so
-release deliberately.
+`v*` tag is pushed. It authenticates with PyPI via Trusted Publishing (OIDC), so
+there is no API token or secret stored in the repo. PyPI release names and
+versions are permanent and cannot be reused, so release deliberately.
 
 To cut a release:
 
@@ -72,30 +71,12 @@ To cut a release:
    sdist + wheel, runs `twine check`, and publishes to PyPI. Watch it under the
    repo's Actions tab.
 
-### Current state: API token, Trusted Publisher registered but untested
+### Trusted Publisher registration
 
-Trusted Publishing has never worked on this project. Every tagged run up to
-0.7.0 failed with `invalid-publisher`, because no publisher matching this
-repository was registered on PyPI, so 0.5.2, 0.6.1 and 0.7.0 were all uploaded
-by hand.
-
-On 2026-11-15 the publisher was registered on PyPI with the values in the table
-below. No release has used it yet: the workflow still passes the token, and while
-it does, the action never tries OIDC.
-
-Since 2026-09-05 the workflow authenticates with an API token instead, held as
-the `PYPI_API_TOKEN` secret on the `pypi` **environment** (not on the
-repository), and that environment accepts `v*` tags only. A pull request or a
-branch build therefore cannot read it.
-
-The token is account-scoped, so it can publish any of the owner's PyPI
-projects. Replacing it with a token scoped to `clawbio` alone is the obvious
-improvement, and returning to Trusted Publishing removes the secret entirely.
-
-### Returning to Trusted Publishing (removes the secret)
-
-Step 1 (done 2026-11-15): on PyPI, open the `clawbio` project -> **Manage** ->
-**Publishing**, then under **Add a new publisher** choose GitHub and enter exactly:
+The publisher is registered on PyPI under the `clawbio` project -> **Manage** ->
+**Publishing**, as a GitHub publisher with exactly these values. If any of them
+change (repo rename, workflow rename, environment rename), update them on PyPI
+too, or publishing fails with `invalid-publisher`:
 
 | Field | Value |
 |-------|-------|
@@ -107,12 +88,11 @@ Step 1 (done 2026-11-15): on PyPI, open the `clawbio` project -> **Manage** ->
 The `pypi` GitHub environment already exists: it accepts `v*` tags only and
 needs a reviewer's approval before the publish job runs.
 
-Step 2: in `publish.yml`, delete the `password:` line from the publish step, then
-cut a release. If it fails with `invalid-publisher`, compare the table above with
-the claims printed in the job log. Put the line back to release in the meantime.
+If a release fails with `invalid-publisher`, compare the table above with the
+claims printed in the job log.
 
-Step 3: once a release has gone out over OIDC, delete the `PYPI_API_TOKEN` secret
-from the `pypi` environment and revoke the token on PyPI.
+Once the first release has gone out over OIDC, delete the old `PYPI_API_TOKEN`
+secret from the `pypi` environment and revoke the token on PyPI.
 
 Trusted Publishing also turns on attestations: `pypa/gh-action-pypi-publish`
 signs every file with Sigstore and uploads a PEP 740 attestation. These show as
