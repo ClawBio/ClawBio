@@ -132,6 +132,76 @@ git clone --branch 2.0.0 --depth 1 https://github.com/BioSkryb/bj-expression.git
 
 BioSkryb's terms (https://www.bioskryb.com/basejumper/local-license/) limit use to internal research and bar giving third parties access to the service. Read them before running.
 
+## Where the pipeline code lives, and how the wrapper connects to it
+
+The BJ-Expression pipeline is BioSkryb Genomics' software. This skill (MIT) contains none of
+it and ClawBio does not redistribute it. To use the wrapper you do three things yourself:
+
+1. Clone BioSkryb's repository: https://github.com/BioSkryb/bj-expression (the pinned tag above).
+2. Read and accept BioSkryb's terms: https://www.bioskryb.com/basejumper/local-license/.
+3. Pass your checkout to the wrapper with `--pipeline-dir`, and confirm the terms with
+   `--accept-bioskryb-terms`. The wrapper cannot accept them for you.
+
+The wrapper touches BioSkryb's code in exactly three places, and changes none of it:
+
+| Connection | What happens |
+|---|---|
+| Pin | `--pipeline-version` (default `2.0.0`) must equal the checkout's git tag, and the checkout must have no uncommitted changes. Otherwise the wrapper stops. `--allow-dirty-pipeline` overrides this and is recorded as `dirty: true` in `result.json`. |
+| Launch | The wrapper writes a Nextflow params file and runs `nextflow run <pipeline-dir>/main.nf -params-file ... -work-dir ... [-c <extra-config>] [-profile <profile>] [-resume]`. |
+| Read back | It reads the pipeline's published results and trace, then checks, summarises and copies them. |
+
+Intended use: regular single-cell expression work on demultiplexed FASTQ pairs, as BioSkryb's
+pipeline describes. A modified or forked pipeline is outside this skill's scope. If you run
+one, you are responsible for its licence, and the run is recorded as dirty.
+
+## Parameter reference
+
+**Required, and run mode**
+
+| Parameter | Meaning |
+|---|---|
+| `--input` | Sample sheet CSV: `biosampleName,read1,read2[,groups]`. |
+| `--output` | Output directory (must not already hold a `result.json`, unless `--resume`). |
+| `--pipeline-dir` | Your checkout of BioSkryb/bj-expression. |
+| `--reads-per-file N\|all` | Required for a run or `--check`. Reads to keep from each file of a pair, or `all` for none dropped. |
+| `--accept-bioskryb-terms` | Required to run. Confirms you accepted BioSkryb's terms. |
+
+**Passed through to the pipeline as parameters**
+
+| Parameter | Pipeline parameter | Meaning |
+|---|---|---|
+| `--genome` | `genome` | `GRCh38` (default) or `GRCm39`. |
+| `--reads-per-file N` | `n_reads` = 2N | Subsample N reads from each file. The pipeline divides `n_reads` across R1 and R2. |
+| `--reads-per-file all` | `skip_subsampling` | Skips seqtk. The reads are then not trimmed to `read_length`. |
+| `--read-length` | `read_length` | Trim length (pipeline default if omitted). |
+| `--min-reads` | `min_reads` | Minimum reads for a sample to be analysed (pipeline default if omitted). |
+| `--seed` | `seqtk_sample_seed` | Only `123` is allowed (the pipeline fixes it for read 2). |
+| `--instrument` | `instrument` | Sequencer name, for example `NovaSeq`. |
+| `--skip-cutadapt`, `--skip-qc-plots`, `--skip-subsampling` | same names | Skip that pipeline stage. |
+| `--max-cpus`, `--max-memory` | `max_cpus`, `max_memory` | Resource ceilings. Do not exceed the host's memory. |
+| `--genomes-base` | `genomes_base` | Root of the reference bundle (default: BioSkryb's public S3). |
+
+**Runtime**
+
+| Parameter | Meaning |
+|---|---|
+| `--profile` | Container backend: `docker` (default) or `singularity`. |
+| `--extra-config` | Extra Nextflow config passed with `-c` (for example sandbox settings for hosts without Docker). A copy goes into the reproducibility bundle. |
+| `--resume` | Passes `-resume` to Nextflow. Needs the `work/` folder, so use it with `--keep-work` or an unfinished run. |
+| `--nextflow-version` | Nextflow release (default `25.04.6`). 26.x cannot parse this pipeline's config. |
+
+**Result handling**
+
+| Parameter | Meaning |
+|---|---|
+| `--keep-work` | Keep `work/` after a successful run. By default it is removed once every result is a verified real file. |
+| `--keep-symlinks` | Keep Nextflow's symlinks in `results_clawbio/` instead of replacing them with copies. |
+| `--materialise-only` | Replace symlinks in an existing run's results, running nothing. |
+| `--strict` | Exit 1 if the pipeline ignored any failed task. |
+
+**Checks that run nothing:** `--check` (inputs, checkout, tools), `--count-reads` (read counts per
+FASTQ), and `--demo` (a bundled synthetic sheet; writes the plan only).
+
 ## Building the human reference files yourself
 
 BioSkryb's reference bundle (`s3://bioskryb-public-data`) is not readable anonymously, so `bj_reference_builder.py` builds the GRCh38 files from public sources and writes them in the layout `--genomes-base` expects:
