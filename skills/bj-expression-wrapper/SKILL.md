@@ -281,6 +281,25 @@ python skills/bj-expression-wrapper/bj_expression_wrapper.py --demo --output ~/s
 
 Wrapper options: `--keep-work` (keep Nextflow's `work/` after a successful run; by default it is removed once every published result is a verified real file, which ends `--resume` for that run), `--keep-symlinks` (leave Nextflow's symlinks in `results_clawbio/`; by default they are replaced with verified real copies after a successful run), `--materialise-only` (do that for an existing run: `--output <run folder>`, run directly, not through `clawbio.py`, which requires an input), `--strict` (exit 1 when any task failed and was ignored, instead of exit 0 with a warning), `--nextflow-version` (default `25.04.6`, set as `NXF_VER` on every Nextflow call; `system` leaves your install alone) and `--extra-config FILE` (passed to Nextflow with `-c` and copied into the bundle).
 
+## Check your own machine first
+
+Do not assume your computer matches the one this skill was developed on. Run the environment check once before the first run. It is read-only and changes nothing:
+
+```bash
+python skills/bj-expression-wrapper/bj_expression_wrapper.py --detect-environment --output ~/my_run
+```
+
+It reports the operating system, whether the kernel is gVisor, CPUs, memory, free disk and the filesystem type at the output path, Python, `uv`, Java, Nextflow, Docker, and Apptainer or Singularity (including `/dev/fuse`, `fusermount` and the Apptainer `enable overlay` setting). It then recommends one profile and prints the next commands with your own paths:
+
+| Profile | When | What to do |
+|---|---|---|
+| `docker` | Docker is installed and its daemon answers | Run with `--profile docker` (the default) |
+| `singularity-sif` | Apptainer or Singularity is present and no signal says `.sif` mounts fail | Run with `--profile singularity` |
+| `singularity-sandbox` | Apptainer is present, but the kernel is gVisor, FUSE is missing or overlay is off | Build sandboxes, then run with `--extra-config` (next section) |
+| `none` | No container runtime found | Install Docker or Apptainer, then rerun the check |
+
+The sandbox recommendation is a judgement from those signals. To confirm it, pass `--probe-image <a .sif file or a sandbox directory>`. The check then runs one tiny command inside that image and lets the result decide. The free-disk warning uses 300 GB, a figure from the author's full-read runs, so treat it as a starting point and use `--min-free-gb` when you call `environment_check.py` directly.
+
 ## Hosts without Docker (for example a gVisor container)
 
 Apptainer cannot mount `.sif` images there, so Nextflow's normal pull fails. A sandbox *directory* run with `--writable` works, and Nextflow uses one found in `singularity.cacheDir` under the name it would have given the pulled image. `apptainer_sandboxes.py` builds all 17 images the RNA-seq path needs and writes the config:
@@ -393,6 +412,15 @@ The agent dispatches and explains. The skill executes. The agent must not change
 - `seqtk-downsample` (where installed): make small FASTQs for a trial run
 - `multiqc-reporter`: aggregate QC from the published outputs
 - `rnaseq-de`: differential expression from the published count tables
+
+## Validate and test before you submit changes
+
+```bash
+uv run agentskills validate skills/bj-expression-wrapper
+uv run python -m pytest skills/bj-expression-wrapper/tests -q
+```
+
+The first command is the same spec check ClawBio's CI runs. The second runs the skill's unit tests; none of them downloads an image or runs the pipeline.
 
 ## Maintenance
 

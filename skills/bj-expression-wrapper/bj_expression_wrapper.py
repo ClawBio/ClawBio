@@ -921,6 +921,13 @@ def build_parser() -> argparse.ArgumentParser:
                    help="REQUIRED for a run or --check: reads to keep from EACH file of a pair (a "
                         "number), or 'all' for no subsampling. The wrapper shows the reads "
                         "available first (--count-reads shows them without running).")
+    p.add_argument("--detect-environment", action="store_true",
+                   help="Read-only look at this machine (OS, storage, Python, Java, Nextflow, "
+                        "container runtime); recommends a profile and prints next steps. "
+                        "Runs nothing else. --output sets where space is checked.")
+    p.add_argument("--probe-image", type=Path,
+                   help="With --detect-environment: a .sif file or sandbox directory to run one "
+                        "tiny command in, to confirm the container choice")
     p.add_argument("--count-reads", action="store_true",
                    help="Count the reads in every FASTQ of --input, print the table, and stop")
     p.add_argument("--n-reads", type=_old_n_reads, default=None, help=argparse.SUPPRESS)
@@ -961,6 +968,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run(args: argparse.Namespace) -> int:
+    if args.detect_environment:
+        sys.path.insert(0, str(SKILL_DIR))
+        import environment_check
+        rep = environment_check.detect(args.output or Path.cwd(),
+                                       image_to_probe=args.probe_image)
+        print(environment_check.format_report(rep))
+        return 1 if rep.worst() == "problem" else 0
     if args.count_reads:
         if args.input is None:
             raise WrapperError("--input is required with --count-reads")
