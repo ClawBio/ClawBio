@@ -169,7 +169,7 @@ fails every PR.
 - **Imports**: Sibling modules loaded via `importlib.util.spec_from_file_location` — no package structure. Bare-name imports (`import foo`) share `sys.modules` across skills, so give skill-level modules names unique across skills (`nutrigx_repro_bundle.py`, not `repro_bundle.py`).
 - **CLI**: Every skill script accepts `--input`, `--output`, and `--demo`. Use `argparse`. Write only under `--output`, never the current directory or the skill folder; the nightly sweep runs every demo with `--output` and fails if anything lands in the checkout.
 - **Output**: Skills write to `<output_dir>/report.md` (primary), plus `figures/` and `tables/` subdirectories as needed. Return a `result.json` with structured findings.
-- **Reproducibility**: Every skill with a Python implementation writes `<output_dir>/reproducibility/` (`commands.sh`, `environment.yml`, `checksums.sha256`) using `clawbio.common.reproducibility` — `write_commands_sh`, `write_environment_yml`, `write_checksums`. Do not hand-roll these writers. Label checksums relative to the output directory (`anchor=output_dir`) so `cd <output_dir> && sha256sum -c reproducibility/checksums.sha256` resolves.
+- **Reproducibility**: Every skill with a Python implementation writes `<output_dir>/reproducibility/` (`commands.sh`, `environment.yml`, `checksums.sha256`) using `clawbio.common.reproducibility` — `write_portable_commands_sh`, `write_environment_yml`, `write_checksums`. Do not hand-roll these writers. Use `write_portable_commands_sh` with a `ReproCommand`, not `write_commands_sh`: it runs the script from `$CLAWBIO_ROOT` and passes the output directory as `ReproPath(output_dir, anchor="output_dir")`, so `bash reproducibility/commands.sh` replays from any directory and into a copied bundle; `write_commands_sh` records the command verbatim, so its replay works only from the repo root. Write the bundle last, after `result.json`, so the checksums cover every output. Label checksums relative to the output directory (`anchor=output_dir`) so `cd <output_dir> && sha256sum -c reproducibility/checksums.sha256` resolves.
 - **Dependencies**: Add core deps with `uv add <package>` (updates `pyproject.toml`; commit `uv.lock`). Skill-specific heavy deps go in the skill's SKILL.md YAML `install` section.
 
 ## Project Structure
@@ -286,7 +286,7 @@ Hypothesis's default 200 ms deadline otherwise makes them flaky in CI.
    - `## Maintenance`: Review cadence, staleness signals, deprecation criteria.
 4. **Add demo data**: a small synthetic dataset (never real patient data) and `--demo` flag support
 5. **Write tests first (red/green TDD)**: create `skills/<name>/tests/test_<name>.py` covering expected inputs, outputs, edge cases, and demo mode. Run them and confirm they fail. Once the demo runs, add its [demo snapshot test](#demo-snapshot-tests).
-6. **Add the Python implementation** to make the tests pass (optional — SKILL.md alone is a usable skill). Accept `--input`, `--output`, `--demo`. Write the reproducibility bundle with `clawbio.common.reproducibility` (`write_commands_sh`, `write_environment_yml`, `write_checksums`) rather than hand-rolling it, and keep `reproducibility/` listed in the SKILL.md `## Output Structure` tree — do not prune it to make `TestOutputContract` pass.
+6. **Add the Python implementation** to make the tests pass (optional — SKILL.md alone is a usable skill). Accept `--input`, `--output`, `--demo`. Write the reproducibility bundle with `clawbio.common.reproducibility` (`write_portable_commands_sh`, `write_environment_yml`, `write_checksums`) rather than hand-rolling it, and keep `reproducibility/` listed in the SKILL.md `## Output Structure` tree — do not prune it to make `TestOutputContract` pass.
 7. **Stress test** (run 10 times with varied inputs). Every correction becomes a Gotcha.
 8. **Register in `clawbio/cli.py`**: add an entry to the `SKILLS` dict with script path, demo_args, description, and allowed_extra_flags
 9. **Tests are collected automatically**: `pytest.ini` globs `skills/*/tests`, so there is nothing to register
@@ -371,20 +371,18 @@ python tests/benchmark/mock_api_server.py &
 
 ## Homepage (index.html) — STRICT
 
-The automated site-stats agent regenerates parts of `index.html`. These constraints
-are deliberate and must survive every regeneration:
+Live numbers on `index.html` (stars, forks, contributors, skills, demo, CLI and test
+counts, "+ N more skills") are filled at every deploy by `scripts/build_site.py` from
+their sources. Each sits in a `<span data-stat="KEY">`; never hand-edit the number
+inside one, and mark any new live number the same way (`tests/test_build_site.py`
+rejects unknown keys). These constraints are deliberate:
 
 - **The skills grid shows exactly 5 cards.** It is a sample, not a directory; do not
   add cards. Browsing the full set is what `skills/` and the marketplace are for.
-- **The "+ N more skills" line must equal `skill_count` in `skills/catalog.json`
-  minus the 5 shown.** Never hand-write N.
 - **"Latest from the community" shows at most 10 cards**, newest first.
-- **Every count on the page derives from a source, never from memory**: skills and
-  Galaxy tools from `skills/catalog.json` (which excludes proprietary/local-only
-  folders, so never count `SKILL.md` directories); tests from
-  `grep -rhoE '^[[:space:]]*def test_' --include='*.py' . | wc -l`; stars, forks and
-  contributors from `gh api` at run time; benchmark scores from the most recent
-  `bench-leaderboard` run, not from whatever the page currently says.
+- **Benchmark scores are hand-typed** from the most recent `bench-leaderboard` run, not
+  from `bench_runs/latest/` (stale since the job could not open PRs) and not from
+  whatever the page currently says.
 - **Never publish a benchmark figure without its date and scope.** The suite is a
   `--smoke` run over a subset of skills; a pass rate shown alone reads as a success
   headline and goes stale silently.

@@ -892,3 +892,53 @@ def test_copies_that_differ_only_in_a_raw_column_are_refused(column):
         collapse_duplicate_rsid_rows([a, b])
     b.raw[column] = "1000"
     assert len(collapse_duplicate_rsid_rows([a, b]).kept) == 1
+
+
+# ── Reproducibility bundle ────────────────────────────────────────────────────
+
+@needs_pysam
+def test_cli_writes_a_verifiable_reproducibility_bundle(patched_pysam, tmp_path):
+    """Every run writes <output>/reproducibility/ via clawbio.common.reproducibility,
+    and checksums.sha256 verifies from <output>."""
+    import json
+    from eqtl_catalogue_region_fetch import main
+    from clawbio.common.checksums import sha256_file
+
+    patched_pysam["tbx"] = _mock_tabix(_THREE_COPIES_AND_ONE_OTHER)
+    cfg = tmp_path / "cfg.json"
+    cfg.write_text(json.dumps({"dataset_id": "QTD000266", "chromosome": "1",
+                               "start_bp": 108_774_968, "end_bp": 109_774_968}))
+    out = tmp_path / "out"
+    assert main(["--input", str(cfg), "--output", str(out), "--no-cache"]) == 0
+
+    repro = out / "reproducibility"
+    for name in ("commands.sh", "environment.yml", "checksums.sha256"):
+        assert (repro / name).is_file(), name
+
+    lines = (repro / "checksums.sha256").read_text().splitlines()
+    labels = {line.split("  ", 1)[1] for line in lines}
+    assert {"variants.tsv", "collapsed_rows.tsv", "report.md"} <= labels
+    for line in lines:
+        digest, label = line.split("  ", 1)
+        assert not Path(label).is_absolute()
+        assert digest == sha256_file(out / label), label
+
+    commands = (repro / "commands.sh").read_text()
+    assert ('"$CLAWBIO_ROOT/skills/eqtl-catalogue-region-fetch/'
+            'eqtl_catalogue_region_fetch.py"') in commands
+    assert "--no-cache" in commands and '"$OUTPUT_DIR"' in commands
+    assert str(out) not in commands
+
+
+@needs_pysam
+def test_cli_writes_no_bundle_when_the_fetch_fails(patched_pysam, tmp_path):
+    """A failed fetch leaves nothing a downstream step could read as a finished run."""
+    import json
+    from eqtl_catalogue_region_fetch import main
+    patched_pysam["tbx"] = _mock_tabix([_MALFORMED_5_COLS])
+    cfg = tmp_path / "cfg.json"
+    cfg.write_text(json.dumps({"dataset_id": "QTD000266", "chromosome": "1",
+                               "start_bp": 108_774_968, "end_bp": 109_774_968}))
+    out = tmp_path / "out"
+    assert main(["--input", str(cfg), "--output", str(out), "--no-cache"]) == 2
+    assert not (out / "reproducibility").exists()

@@ -144,7 +144,7 @@ def test_vcf_commands_require_input_env_and_are_portable(tmp_path) -> None:
     commands = paths["commands"].read_text(encoding="utf-8")
     flat_commands = flat(commands)
 
-    assert "CLAWBIO_ROOT:=/path/to/ClawBio" in commands
+    assert "CLAWBIO_ROOT:=" not in commands
     assert '"$CLAWBIO_ROOT/skills/wgs-prs/wgs_prs.py"' in commands
     assert '${INPUT_VCF:?Set INPUT_VCF to the VCF used for this run}' in commands
     assert '--input-vcf "${INPUT_VCF}"' in flat_commands

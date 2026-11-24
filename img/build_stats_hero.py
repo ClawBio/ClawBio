@@ -8,10 +8,8 @@ refreshed whenever the figures go stale.
     python3 build_stats_hero.py          # live numbers via gh
     python3 build_stats_hero.py --check  # print the numbers, render nothing
 
-Counting rules, deliberately conservative:
-  skills       directories under skills/ containing a SKILL.md
-  contributors union of the contributors API and all merged-PR authors, because
-               the API alone undercuts anyone without an attributed commit
+Stars, forks, contributors and skills come from scripts/build_site.py, the same
+counting rules as the homepage.
 """
 import argparse
 import base64
@@ -19,6 +17,7 @@ import io
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 HERE = Path(os.path.dirname(os.path.abspath(__file__)))
@@ -47,28 +46,18 @@ def gh(*args: str) -> str:
 
 
 def live_stats() -> dict:
-    repo = json.loads(gh("api", f"repos/{REPO}"))
+    # The homepage's numbers and counting rules (scripts/build_site.py). github_facts()
+    # runs outside site_facts() so a gh failure stops the render instead of falling back.
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    from build_site import github_facts, site_facts
+
+    facts = site_facts(github=dict) | github_facts()
     clones = json.loads(gh("api", f"repos/{REPO}/traffic/clones"))
-
-    api_contribs = set(gh("api", f"repos/{REPO}/contributors", "--paginate",
-                          "-q", ".[].login").splitlines())
-    pr_authors = set(gh("pr", "list", "--repo", REPO, "--state", "merged",
-                        "--limit", "1000", "--json", "author",
-                        "-q", ".[].author.login").splitlines())
-    contributors = len({c for c in api_contribs | pr_authors if c})
-
-    # Read the catalog rather than counting SKILL.md directories. The catalog
-    # generator excludes proprietary/local-only folders (EXCLUDED_FOLDERS), so
-    # counting directories publishes one skill too many and advertises a
-    # PROPRIETARY-licensed skill in a public figure.
-    catalog = REPO_ROOT / "skills" / "catalog.json"
-    skills = json.loads(catalog.read_text())["skill_count"] if catalog.exists() else 0
-
     return {
-        "stars": repo["stargazers_count"],
-        "forks": repo["forks_count"],
-        "contributors": contributors,
-        "skills": skills,
+        "stars": facts["stars"],
+        "forks": facts["forks"],
+        "contributors": facts["contributors"],
+        "skills": facts["skills"],
         "clones": clones["count"],
         "cloners": clones["uniques"],
     }

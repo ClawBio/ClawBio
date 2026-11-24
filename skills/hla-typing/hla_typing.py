@@ -39,7 +39,7 @@ def validate_input(input_path: Path) -> dict:
             line = line.strip()
             if line and not line.startswith("#"):
                 lines.append(line)
-    return {"lines": lines, "source": str(input_path)}
+    return {"lines": lines, "source": Path(input_path).name}
 
 
 def run_analysis(data: dict) -> dict:

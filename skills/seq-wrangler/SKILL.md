@@ -119,7 +119,7 @@ Without this skill, aligning FASTQ reads to a reference genome requires manually
 5. **Statistics**: flagstat, per-chromosome coverage, insert size (paired-end)
 6. **MultiQC Report**: Aggregate QC metrics across samples (optional)
 7. **Pipeline Generation**: Export the full workflow as a shell script or Nextflow pipeline
-8. **Reproducibility Bundle**: commands.sh, environment.yml, checksums.sha256, run_metadata.json
+8. **Reproducibility Bundle**: commands.sh, environment.yml, checksums.sha256, inputs.json, run_metadata.json
 9. **Demo Mode**: Synthetic data run, no external tools required
 
 ## Input Formats
@@ -223,9 +223,10 @@ output/
 ├── trimmed/ # Trimmed FASTQs (if --trim)
 ├── multiqc/ # MultiQC report (if --run-multiqc)
 └── reproducibility/
-│ └── commands.sh # Exact command to reproduce this run
-│ └── environment.yml # Conda environment spec 
-│ └── checksums.sha256 # SHA-256 of all input files
+│ └── commands.sh # Replays this run into this output directory
+│ └── environment.yml # Conda environment spec
+│ └── checksums.sha256 # SHA-256 of every output, relative to the output directory
+│ └── inputs.json # SHA-256 of each input FASTQ and the samplesheet (real runs only)
 │ └── run_metadata.json # Full run parameters and timestamp
 ```
 

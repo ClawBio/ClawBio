@@ -1,8 +1,8 @@
 name: Publish to PyPI
 
 # Publish clawbio to PyPI whenever a version tag is pushed, e.g. `git tag v0.5.3 && git push --tags`.
-# Authentication: an API token on the `pypi` environment for now. A Trusted Publisher (OIDC) is
-# registered on PyPI but untested; the switch-over steps are in docs/releasing.md.
+# Authentication uses PyPI Trusted Publishing (OIDC): no API token or secret is stored in the repo.
+# The registered publisher values are in docs/releasing.md.
 
 on:
   push:
@@ -62,28 +62,5 @@ jobs:
           name: dist
           path: dist/
 
-      # Trusted Publishing (OIDC) is the intended mechanism and needs no secret,
-      # but it has never succeeded: every tagged run up to 0.7.0 failed with
-      # `invalid-publisher`, because no matching publisher was registered on
-      # PyPI. One was registered on 2026-11-15 but is untested, so this step
-      # still publishes with an API token held as an environment secret.
-      #
-      # The secret lives on the `pypi` environment, not on the repository, and
-      # that environment accepts `v*` tags only, so no branch build and no pull
-      # request can reach it.
-      #
-      # To switch to Trusted Publishing (and get PEP 740 attestations), delete
-      # the `password` line below, then delete the secret once a release has
-      # gone out over OIDC. See docs/releasing.md.
-      # `verify-metadata: false` because the twine bundled in the action's
-      # container rejects Metadata-Version 2.5, which current hatchling emits:
-      # the v0.7.1 run failed with `InvalidDistribution: '2.5' is not a valid
-      # metadata version` after authenticating successfully. The metadata is
-      # fine, and PyPI itself accepts it; only the container's older twine does
-      # not. The build job above already runs `uvx twine check` on the same
-      # artefacts with a current twine, so nothing goes unchecked.
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
-          verify-metadata: false

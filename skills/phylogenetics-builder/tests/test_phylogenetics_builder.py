@@ -27,6 +27,8 @@ Markers:
 
 from __future__ import annotations
 
+from clawbio.common import demo_runner
+
 import json
 import re
 import subprocess
@@ -926,7 +928,14 @@ class TestAlignmentExport:
         result = json.loads((out / "result.json").read_text())
         assert exported.read_bytes() == before
         assert "trimmed" not in result["alignment_files"]
-        assert result["input_file"] == str(exported)
+        assert result["input_file"] == exported.name
         assert str(exported) in (out / "reproducibility" / "commands.sh").read_text()
         assert any("was not exported" in alert for alert in result["contract_alerts"])
 
+
+
+def test_demo_outputs_do_not_record_the_checkout_path(tmp_path):
+    """Reports are shared; an absolute path leaks the user's name and folder layout."""
+    outputs = demo_runner.demo_outputs("phylogenetics-builder", tmp_path)
+    leaks = [name for name, text in outputs.items() if str(demo_runner.PROJECT_ROOT) in text]
+    assert leaks == []
