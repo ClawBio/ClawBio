@@ -73,7 +73,7 @@ def test_demo_replays_from_a_copy(demo_out: Path, tmp_path: Path) -> None:
     elsewhere.mkdir()
     subprocess.run(["bash", str(copy / "reproducibility" / "commands.sh")], check=True,
                    capture_output=True, cwd=elsewhere,
-                   env={"PATH": "/usr/bin:/bin", "PYTHON": sys.executable})
+                   env={"PATH": "/usr/bin:/bin", "PYTHON": sys.executable, "CLAWBIO_ROOT": str(SKILL_DIR.parents[1])})
     _verify_checksums(copy)
     assert not any(elsewhere.iterdir()), "replay wrote into the working directory"
 
@@ -91,7 +91,7 @@ def _replayed_argv(out: Path) -> list[str]:
     fake.chmod(0o755)
     before = set(out.parent.iterdir())
     run = subprocess.run(["bash", str(out / "reproducibility" / "commands.sh")],
-                         env={"PATH": "/usr/bin:/bin", "PYTHON": str(fake)},
+                         env={"PATH": "/usr/bin:/bin", "PYTHON": str(fake), "CLAWBIO_ROOT": str(SKILL_DIR.parents[1])},
                          capture_output=True, check=True, cwd=out.parent)
     assert set(out.parent.iterdir()) == before, "replay created files next to the output"
     return run.stdout.decode("utf-8", "surrogateescape").split("\0")[1:-1]
