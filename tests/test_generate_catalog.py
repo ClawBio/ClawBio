@@ -47,6 +47,17 @@ def test_ancestry_demo_command_supplies_the_synthetic_patients_ancestry():
     )
 
 
+def test_skills_whose_script_has_no_demo_get_no_demo_command():
+    # Their entry script takes no --demo, so the guessed command either crashes
+    # (clawpathy) or exits 0 having run nothing (prioritizer), a false PASS.
+    generate_catalog = _load_generate_catalog_module()
+    catalog = {entry["name"]: entry for entry in generate_catalog.build_catalog()}
+
+    for name in ("clawpathy-autoresearch", "clinical-variant-prioritizer"):
+        assert catalog[name]["demo_command"] is None
+        assert catalog[name]["has_demo"] is False
+
+
 def test_ancestry_catalog_demo_runs_with_user_supplied_ancestry(tmp_path, monkeypatch):
     """Run the published command, not a separately maintained demo invocation."""
     root = Path(__file__).resolve().parents[1]

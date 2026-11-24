@@ -264,6 +264,11 @@ DEMO_EXTRA_ARGS = {
     "ancestry-risk-profiler": ("--ancestry", "SAS"),
 }
 
+# Entry scripts with no --demo: the guessed `<script> --demo` would crash
+# (clawpathy needs a workspace and the claude CLI) or exit 0 having run nothing
+# (the prioritizer is an importable API; its default panel is not committed).
+NO_DEMO = {"clawpathy-autoresearch", "clinical-variant-prioritizer"}
+
 
 def demo_invocation(script: Path | None, root: Path | None = None) -> str | None:
     """Render the command that actually runs `script` in demo mode."""
@@ -420,7 +425,7 @@ def build_catalog() -> list[dict]:
         demo_command = None
         if cli_alias and cli_alias in registered_aliases:
             demo_command = f"python clawbio.py run {cli_alias} --demo"
-        else:
+        elif folder_name not in NO_DEMO:
             demo_command = demo_invocation(entry_point)
         extra_demo_args = DEMO_EXTRA_ARGS.get(folder_name, ())
         if demo_command and extra_demo_args:

@@ -2,9 +2,6 @@
   "article-data-fetcher": [
     "repro_files"
   ],
-  "clinical-variant-prioritizer": [
-    "repro_files"
-  ],
   "eqtl-catalogue-region-fetch": [
     "repro_files"
   ],
