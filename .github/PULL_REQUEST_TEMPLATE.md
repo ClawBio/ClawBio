@@ -2,6 +2,8 @@
 
 <!-- What does this PR do? 1-3 bullet points. -->
 
+Closes #
+
 ## Skill affected
 
 <!-- Which skill does this change? e.g. pharmgx-reporter, equity-scorer, or "new skill: my-skill-name" -->
