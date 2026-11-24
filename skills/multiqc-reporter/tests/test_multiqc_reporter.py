@@ -166,7 +166,8 @@ def test_demo_runs_with_real_multiqc(tmp_path):
     from clawbio.common import demo_runner
 
     result = demo_runner.run_demo("multiqc-reporter", tmp_path, timeout=300)
-    assert result["passed"], result.get("stderr")
-    assert (tmp_path / "report.md").is_file()
+    assert result["passed"], result["stderr_tail"]
+    # A sample row proves the general-stats table was actually parsed.
+    assert "| SAMPLE_01 |" in (tmp_path / "report.md").read_text()
     for name in ("commands.sh", "environment.yml", "checksums.sha256"):
         assert (tmp_path / "reproducibility" / name).is_file(), name
