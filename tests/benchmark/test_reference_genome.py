@@ -120,28 +120,19 @@ class TestCitation:
         assert path.exists(), "corpas-30x/CITATION.cff must exist"
 
     def test_citation_valid_yaml(self):
-        try:
-            import yaml
-        except ImportError:
-            pytest.skip("pyyaml not installed")
+        yaml = pytest.importorskip("yaml", reason="pyyaml not installed")
         path = CORPAS_DIR / "CITATION.cff"
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
         assert isinstance(data, dict)
 
     def test_citation_has_doi(self):
-        try:
-            import yaml
-        except ImportError:
-            pytest.skip("pyyaml not installed")
+        yaml = pytest.importorskip("yaml", reason="pyyaml not installed")
         path = CORPAS_DIR / "CITATION.cff"
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
         assert data.get("doi") == "10.5281/zenodo.19297389"
 
     def test_citation_has_all_versions_doi(self):
-        try:
-            import yaml
-        except ImportError:
-            pytest.skip("pyyaml not installed")
+        yaml = pytest.importorskip("yaml", reason="pyyaml not installed")
         path = CORPAS_DIR / "CITATION.cff"
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
         identifiers = data.get("identifiers", [])
