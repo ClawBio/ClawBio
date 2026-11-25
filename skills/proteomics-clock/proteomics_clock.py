@@ -13,6 +13,7 @@ import hashlib
 import io
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -22,6 +23,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import requests
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.textio import write_text_lf  # noqa: E402
 
 
 DISCLAIMER = (
@@ -179,7 +186,7 @@ def _download_text(url: str, cache_name: str) -> str:
     checksum_file = _checksum_path(cached)
     if cached.exists():
         if checksum_file.exists():
-            expected = checksum_file.read_text().strip()
+            expected = checksum_file.read_text(encoding="utf-8").strip()
             actual = _sha256(cached)
             if expected and expected != actual:
                 raise RuntimeError(
@@ -190,7 +197,7 @@ def _download_text(url: str, cache_name: str) -> str:
     resp = requests.get(url, timeout=30)
     resp.raise_for_status()
     cached.write_bytes(resp.content)
-    checksum_file.write_text(hashlib.sha256(resp.content).hexdigest() + "\n")
+    write_text_lf(checksum_file, hashlib.sha256(resp.content).hexdigest() + "\n")
     return resp.content.decode("utf-8")
 
 
@@ -377,7 +384,7 @@ def write_reproducibility(output_dir: Path, input_desc: str, command_args: list[
     repro_dir.mkdir(parents=True, exist_ok=True)
 
     command_text = "python skills/proteomics-clock/proteomics_clock.py " + " ".join(command_args) + "\n"
-    (repro_dir / "commands.sh").write_text(command_text)
+    write_text_lf(repro_dir / "commands.sh", command_text)
 
     env_text = """name: clawbio-proteomics-clock
 channels:
@@ -390,7 +397,7 @@ dependencies:
   - seaborn
   - requests
 """
-    (repro_dir / "environment.yml").write_text(env_text)
+    write_text_lf(repro_dir / "environment.yml", env_text)
 
     checksums = []
     input_path = Path(input_desc)
@@ -400,7 +407,7 @@ dependencies:
         for path in sorted((output_dir / subdir).glob("*")):
             if path.is_file():
                 checksums.append(f"{_sha256(path)}  {subdir}/{path.name}")
-    (repro_dir / "checksums.sha256").write_text("\n".join(checksums) + "\n")
+    write_text_lf(repro_dir / "checksums.sha256", "\n".join(checksums) + "\n")
 
 
 def write_report(
@@ -504,7 +511,7 @@ using elastic net coefficients trained on UK Biobank data.
 
 {DISCLAIMER}
 """
-    (output_dir / "report.md").write_text(report)
+    write_text_lf(output_dir / "report.md", report)
 
 
 # ---------------------------------------------------------------------------
@@ -609,7 +616,7 @@ def run_analysis(
         "convert_mortality_to_years": convert_mortality_to_years,
         "input_sanity_warnings": input_warnings,
     }
-    (output_dir / "tables" / "clock_metadata.json").write_text(json.dumps(metadata, indent=2))
+    write_text_lf(output_dir / "tables" / "clock_metadata.json", json.dumps(metadata, indent=2))
 
     # Figures — use gen1 preferentially, fall back to gen2
     plot_preds = gen1_preds if gen1_preds is not None else gen2_preds
