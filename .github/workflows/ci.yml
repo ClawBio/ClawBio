@@ -55,6 +55,21 @@ jobs:
           uv sync --locked
           uv run pytest --collect-only -q
 
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+
+      # Rules live in [tool.ruff] in pyproject.toml; the ruff version is pinned in
+      # the dev group of uv.lock.
+      - name: Ruff
+        run: uv run --frozen --only-group dev ruff check --output-format=github .
+
   dependency-audit:
     # Report-only, deliberately. Two reasons, both verified against uv 0.10.12:
     #

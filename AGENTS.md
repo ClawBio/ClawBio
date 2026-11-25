@@ -37,6 +37,8 @@ a bare `python` may be missing or older than 3.12.
 | `uv run pytest -v` | Run all tests |
 | `uv run pytest skills/<name>/tests/ -v` | Run tests for one skill |
 | `uv run python scripts/generate_catalog.py` | Regenerate `skills/catalog.json` |
+| `uv run ruff check --fix .` | Lint (rules in `[tool.ruff]` in `pyproject.toml`); CI runs `ruff check` without `--fix` |
+| `uvx prek install` | Optional: run the same lint as a git hook at commit time |
 | `agentskills validate skills/<name>` | Run SKILL.md conformance linter (agentskills spec) |
 | `make test` | Alias for `python -m pytest -v` |
 | `make demo` | Run PharmGx demo |
@@ -352,6 +354,9 @@ uv run python tests/benchmark/mock_api_server.py &
 
 ## Before Opening a PR
 
+- Run `uv run ruff check --fix .` once your edits are done, not between them: `--fix` deletes an import
+  you added but have not used yet. When an unused import is a deliberate re-export, keep it with
+  `# noqa: F401  (re-exported for <user>)` rather than deleting it.
 - Run `uv run pytest tests/` plus the tests of every skill you touched; paste the pass/fail
   counts into **Test output**.
 - Reproduce each claim in your PR description by running the code, not by reading it. For a bug

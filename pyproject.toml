@@ -164,6 +164,7 @@ dev = [
     "pypdf>=7.0.1,<8",
     "inline-snapshot>=0.36.2",
     "pytest-xdist>=3.8.0",
+    "ruff==0.17.6",
 ]
 bot = [
     "python-telegram-bot[job-queue]>=22.8",
@@ -202,3 +203,13 @@ include = [
     "CHANGELOG.md",
     "CITATION.cff",
 ]
+
+[tool.ruff]
+target-version = "py312"
+# Notebooks are excluded: ruff rewrites the whole .ipynb file when it fixes one line.
+extend-exclude = ["*.ipynb"]
+
+[tool.ruff.lint]
+# Setting select replaces ruff's defaults (about 470 rules). Start with unused
+# imports only and add one rule per PR, each after a cleanup PR for it.
+select = ["F401"]
