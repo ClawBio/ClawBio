@@ -20,8 +20,6 @@ import json
 import math
 import os
 import sys
-import urllib.request
-import urllib.error
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent.parent

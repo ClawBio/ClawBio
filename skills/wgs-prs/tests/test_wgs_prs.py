@@ -7,9 +7,8 @@ and mocks subprocess for sarek calls.
 from __future__ import annotations
 
 import json
-import textwrap
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 import shutil
@@ -20,7 +19,6 @@ if str(SKILL_DIR) not in sys.path:
     sys.path.insert(0, str(SKILL_DIR))
 
 from wgs_prs import BridgeConfig, BridgeReport, WgsToPrsBridge, write_demo_vcf
-from clawbio.common.sarek import SarekConfig
 from clawbio.common.vcf_qc import QcConfig, VcfQC
 
 # ---------------------------------------------------------------------------

@@ -4,11 +4,9 @@ Run with: pytest tests/test_portable_commands.py -v
 """
 
 import importlib.util
-import sys
 import tempfile
 from pathlib import Path
 
-import pytest
 
 # Load portable_commands directly to avoid clawbio/__init__.py → runner.py chain
 # (runner.py loads clawbio.py which uses `str | None`, Python 3.10+ only)

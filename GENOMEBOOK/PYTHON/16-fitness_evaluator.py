@@ -24,7 +24,6 @@ Usage:
 
 import argparse
 import json
-import math
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent.parent

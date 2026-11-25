@@ -15,7 +15,6 @@ Biology model:
 
 import json
 import random
-import copy
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent.parent

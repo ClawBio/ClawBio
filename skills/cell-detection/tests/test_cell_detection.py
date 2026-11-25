@@ -250,7 +250,6 @@ class TestSaveMasks:
     """Tests for TIFF mask output."""
 
     def test_masks_tif_created(self, tmp_path):
-        import tifffile
         masks = np.zeros((64, 64), dtype=np.uint16)
         masks[10:20, 10:20] = 1
         cell_detection.save_masks(masks, tmp_path)

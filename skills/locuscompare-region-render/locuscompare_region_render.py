@@ -81,7 +81,6 @@ from ondemand_client import (
 # "no LD for this lead" and both degrade the render rather than failing it.
 _LD_ERRORS = (LDComputeError, OnDemandLDError)
 from ukb_ppp_region_fetch import (
-    RegionResult as UKBPPPRegionResult,
     UKBPPPAccessError,
     UKBPPPClient,
 )

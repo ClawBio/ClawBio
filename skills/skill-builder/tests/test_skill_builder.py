@@ -23,7 +23,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from skill_builder import (
-    collect_spec_interactive,
     generate_catalog_entry,
     generate_skill_md,
     generate_skill_py,
@@ -48,7 +47,6 @@ from skill_builder import (
     _prompt_field,
     _run_review_loop,
     _save_draft,
-    DRAFT_SPEC_PATH,
 )
 import skill_builder as _sb  # used for monkeypatching module-level attributes
 

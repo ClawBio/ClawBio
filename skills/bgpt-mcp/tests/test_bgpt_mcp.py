@@ -6,7 +6,6 @@ is parseable without hitting the network.
 
 import os
 import yaml
-import json
 import pytest
 
 SKILL_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -20,7 +20,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from equity_scorer import (
     GLOBAL_PROPORTIONS,
-    DEFAULT_WEIGHTS,
     parse_vcf,
     load_population_map,
     parse_ancestry_csv,

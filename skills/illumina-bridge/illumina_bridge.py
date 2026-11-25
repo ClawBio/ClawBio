@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 import shlex
 import sys
 from datetime import datetime, timezone

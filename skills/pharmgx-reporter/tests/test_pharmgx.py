@@ -22,7 +22,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pharmgx_reporter import (
     CPIC_TABLES_CHECKED,
-    PGX_SNPS,
     GENE_DEFS,
     GUIDELINES,
     _EVIDENCE_BADGE_CLASS,

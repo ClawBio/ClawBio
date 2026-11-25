@@ -2,8 +2,6 @@
 generate_report.py — Markdown report + matplotlib figures for NutriGx Advisor
 """
 
-import os
-import json
 from datetime import datetime, timezone
 import re
 from pathlib import Path

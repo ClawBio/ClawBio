@@ -13,9 +13,7 @@ Compatibility scoring:
 """
 
 import json
-import random
 from pathlib import Path
-from itertools import product as cartesian
 
 BASE = Path(__file__).resolve().parent.parent
 DATA = BASE / "DATA"

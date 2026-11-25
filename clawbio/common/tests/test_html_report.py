@@ -3,7 +3,6 @@
 import tempfile
 from pathlib import Path
 
-import pytest
 
 from clawbio.common.html_report import HtmlReportBuilder, write_html_report
 from clawbio.common.report import DISCLAIMER

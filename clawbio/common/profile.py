@@ -15,7 +15,6 @@ from clawbio.common.checksums import sha256_file
 from clawbio.common.parsers import (
     GenotypeRecord,
     parse_genetic_file,
-    genotypes_to_simple,
 )
 
 

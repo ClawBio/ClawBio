@@ -14,18 +14,12 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Optional
 
 # Ensure project root is on sys.path for shared imports
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from clawbio.common.parsers import (
-    parse_genetic_file,
-    genotypes_to_simple,
-    genotypes_to_positions,
-)
 
 try:
     from .genome_compare import (

@@ -15,7 +15,6 @@ import json
 import os
 import shlex
 import sys
-import time
 import urllib.error
 import urllib.parse
 import urllib.request

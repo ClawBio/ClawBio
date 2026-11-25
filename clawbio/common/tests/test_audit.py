@@ -2,7 +2,6 @@
 
 import json
 import stat
-from pathlib import Path
 
 import subprocess
 import sys

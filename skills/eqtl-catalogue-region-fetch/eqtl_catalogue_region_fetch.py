@@ -52,15 +52,13 @@ from __future__ import annotations
 
 import argparse
 import csv
-import gzip
-import io
 import json
 import sys
 import time
 from collections import Counter
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Any, Iterator, Sequence
+from typing import Any, Sequence
 
 
 DEFAULT_FTP_BASE = "https://ftp.ebi.ac.uk/pub/databases/spot/eQTL/sumstats"

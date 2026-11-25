@@ -27,9 +27,6 @@ and `hm_effect_allele` as alt; downstream renderer joins on this id.
 from __future__ import annotations
 
 import argparse
-import csv
-import gzip
-import io
 import json
 import re
 import shlex

@@ -6,16 +6,10 @@ Run:
 """
 from __future__ import annotations
 
-import asyncio
-import json
-import os
-import subprocess
-import sys
-import tempfile
 from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent

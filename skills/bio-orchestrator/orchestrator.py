@@ -14,12 +14,10 @@ from __future__ import annotations
 
 from pathlib import Path
 import argparse
-import hashlib
 import json
 import re
 import sys
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
 
 # Shared library imports
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent

@@ -4,7 +4,6 @@ report.py — Markdown report, TSV tables, and matplotlib figures for fine-mappi
 
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional

@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import sys
 
-import pytest
 
 from clawbio.gi import gi_client, gi_runner
 

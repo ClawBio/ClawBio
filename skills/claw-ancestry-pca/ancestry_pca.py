@@ -14,11 +14,9 @@ markdown report with tables and reproducibility metadata.
 from __future__ import annotations
 
 import argparse
-import json
 import shlex
 import sys
 from collections import Counter
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 

@@ -7,11 +7,9 @@ Uses FIXED demo data (Manuel Corpas vs George Church) so all assertions
 are deterministic and reproducible.
 """
 
-import json
 import sys
 from pathlib import Path
 
-import numpy as np
 import pytest
 from inline_snapshot import snapshot
 
@@ -23,15 +21,12 @@ from genome_compare import (
     REFERENCE_FILE,
     DEMO_PATIENT_FILE,
     AIMS_PANEL_FILE,
-    MANUEL_ANCESTRY_FILE,
-    IBS_REFERENCE,
     _ibs_at_site,
     _count_alt_alleles,
     _parse_genotype_file as parse_23andme_extended,
     compute_ibs,
     load_aims_panel,
     estimate_ancestry,
-    generate_report,
     run_comparison,
 )
 

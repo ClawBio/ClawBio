@@ -5,7 +5,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import pytest
 
 # Add skill root to sys.path
 _SKILL_DIR = Path(__file__).resolve().parent.parent
@@ -15,7 +14,7 @@ if str(_SKILL_DIR) not in sys.path:
 
 def test_models_import():
     """Test that core models can be imported."""
-    from data_extractor_core.models import PlotType, Confidence, Figure, DataSeries, ExtractedData
+    from data_extractor_core.models import PlotType, Confidence
 
     assert PlotType.BAR.value == "bar"
     assert Confidence.HIGH.value == "high"
@@ -68,8 +67,7 @@ def test_extracted_data_model():
 def test_cv_calibration_import():
     """Test that cv_calibration module can be imported."""
     from data_extractor_core.cv_calibration import (
-        PlotRegion, DetectedMarker, DetectedBar, CalibrationResult,
-        calibrate_image, format_calibration_prompt,
+        CalibrationResult,
     )
 
     # Test CalibrationResult creation
@@ -80,7 +78,7 @@ def test_cv_calibration_import():
 
 def test_digitizer_prompts():
     """Test that digitizer prompts are defined."""
-    from data_extractor_core.digitizer import BASE_PROMPT, PLOT_GUIDANCE, DEFAULT_GUIDANCE
+    from data_extractor_core.digitizer import BASE_PROMPT, PLOT_GUIDANCE
 
     assert "STEP 1" in BASE_PROMPT
     assert "STEP 4" in BASE_PROMPT
