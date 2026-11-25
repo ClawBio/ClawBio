@@ -88,6 +88,14 @@ def _parse_output_contract(skill_md: Path) -> list[str]:
     return files
 
 
+def test_sibling_modules_keep_their_file_names():
+    # Coverage and mutation tools map code to tests by module name. A sibling
+    # loaded as `clawbio_spatial_stats` is invisible to them: mutmut reported
+    # every mutant in spatial_stats.py and spatial_report.py as untested.
+    assert st._stats.__name__ == "spatial_stats"
+    assert st.generate_report.__module__ == "spatial_report"
+
+
 def test_demo_adata_has_two_spatial_domains():
     adata = st.generate_demo_adata()
     assert adata.n_obs == 64
