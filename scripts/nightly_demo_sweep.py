@@ -39,6 +39,12 @@ SKIP_IN_CI = {
     "galaxy-bridge",      # queries live Galaxy API
     "nfcore-sarek-wrapper",  # needs Nextflow + Java + Docker/Singularity (heavy)
     "seqtk-downsample",   # needs the seqtk binary, which CI does not install
+    "gi-annotation",      # needs a Genomic Intelligence key (GI_API_KEY)
+    "gi-chromatin",       # needs a Genomic Intelligence key (GI_API_KEY)
+    "gi-enhancer",        # needs a Genomic Intelligence key (GI_API_KEY)
+    "gi-expression",      # needs a Genomic Intelligence key (GI_API_KEY)
+    "gi-promoter",        # needs a Genomic Intelligence key (GI_API_KEY)
+    "gi-splice",          # needs a Genomic Intelligence key (GI_API_KEY)
 }
 
 
