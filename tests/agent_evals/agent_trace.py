@@ -25,7 +25,7 @@ ALLOWED_TOOLS = [
       for target in ("clawbio.py:*", "skills/*")),
     # The extras and benchmark invocations AGENTS.md tells agents to type.
     "Bash(uv run --extra * python skills/*)", "Bash(python tests/benchmark/*)",
-    "Bash(uv run --extra * python tests/benchmark/*)",
+    "Bash(uv run python tests/benchmark/*)", "Bash(uv run --extra * python tests/benchmark/*)",
     # Helper commands agents chain with a skill run, e.g. `mkdir -p out && ... | head -60`.
     # A denied helper denies the whole command, which then reads as the agent skipping the skill.
     "Bash(head:*)", "Bash(tail:*)", "Bash(cat:*)", "Bash(ls:*)", "Bash(mkdir:*)", "Bash(grep:*)",
