@@ -218,7 +218,12 @@
       "description": "Meta-agent that routes bioinformatics requests to specialised sub-skills. Handles file type detection, analysis planning, report generation, and reproducibility export.",
       "version": "0.1.0",
       "trigger_keywords": [],
-      "tags": []
+      "tags": [
+        "bioinformatics",
+        "genomics",
+        "workflows",
+        "reproducibility"
+      ]
     },
     {
       "name": "bioconductor-bridge",
