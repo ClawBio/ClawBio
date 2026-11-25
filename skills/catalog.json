@@ -4765,7 +4765,12 @@
       "has_demo": true,
       "demo_command": "python skills/ukb-navigator/ukb_navigator.py --demo",
       "dependencies": [],
-      "tags": [],
+      "tags": [
+        "biobank",
+        "genomics",
+        "data-retrieval",
+        "literature"
+      ],
       "trigger_keywords": [
         "UK Biobank",
         "UKB",

@@ -2532,7 +2532,12 @@
       "description": "Semantic search across UK Biobank's 12,000+ data fields and publications — find the right variables for your research question.",
       "version": "0.1.0",
       "trigger_keywords": [],
-      "tags": []
+      "tags": [
+        "biobank",
+        "genomics",
+        "data-retrieval",
+        "literature"
+      ]
     },
     {
       "name": "ukb-ppp-region-fetch",
