@@ -135,6 +135,7 @@ Step 2 without step 1 hides the tests everywhere. Run `uv sync --all-extras` to 
 
 - Use `tmp_path` for temporary inputs and outputs instead of fixed shared paths or custom temporary-directory helpers. It provides a unique `pathlib.Path` directory per test; it does not change cwd.
 - Use `monkeypatch` for environment variables, attributes and cwd changes. Prefer `monkeypatch.chdir(tmp_path)` to manual `os.chdir()` / `try/finally` cleanup; pytest restores changes after the test. Patch names where the code looks them up.
+- Mark a test `@pytest.mark.slow` if it takes 5 seconds or more on your machine; `uv run pytest skills/<name>/tests/ --durations=0` shows each test's time. `uv run pytest -m "not slow"` is then a quick local loop. CI still runs slow tests.
 
 ### Demo snapshot tests
 
