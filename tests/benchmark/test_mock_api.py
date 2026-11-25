@@ -25,7 +25,7 @@ class TestGroundTruth:
 
     @pytest.fixture(autouse=True)
     def load_gt(self):
-        with open(GROUND_TRUTH) as f:
+        with open(GROUND_TRUTH, encoding="utf-8") as f:
             self.gt = json.load(f)
 
     def test_ground_truth_exists(self):

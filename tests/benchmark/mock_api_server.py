@@ -44,7 +44,7 @@ GROUND_TRUTH_PATH = Path(__file__).parent / "ad_ground_truth.json"
 # Load ground truth for consistent variant data
 _ground_truth: dict = {}
 if GROUND_TRUTH_PATH.exists():
-    _ground_truth = json.loads(GROUND_TRUTH_PATH.read_text())
+    _ground_truth = json.loads(GROUND_TRUTH_PATH.read_text(encoding="utf-8"))
 
 _LEAD_VARIANTS = {
     v["rsid"]: v

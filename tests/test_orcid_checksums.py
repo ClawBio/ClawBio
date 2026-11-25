@@ -28,7 +28,7 @@ def _ids():
     for name in METADATA_FILES:
         path = ROOT / name
         if path.exists():
-            found += [(name, i) for i in ORCID_RE.findall(path.read_text())]
+            found += [(name, i) for i in ORCID_RE.findall(path.read_text(encoding="utf-8"))]
     return found
 
 
