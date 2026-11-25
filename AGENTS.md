@@ -17,7 +17,7 @@ ClawBio is a bioinformatics AI agent skill library built on [OpenClaw](https://g
 git clone https://github.com/ClawBio/ClawBio.git && cd ClawBio
 
 # Install uv (https://docs.astral.sh/uv/getting-started/installation/), then
-uv sync                                     # Python 3.12+ and every dependency
+uv sync                                     # Python 3.12–3.14 and every dependency
 
 # Verify
 uv run python clawbio.py list               # List all skills

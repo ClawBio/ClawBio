@@ -7,7 +7,7 @@ We welcome skills from anyone working in bioinformatics, computational biology, 
 ## Set up
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/)
-(`curl -LsSf https://astral.sh/uv/install.sh | sh` or `brew install uv`). It provides Python 3.12+
+(`curl -LsSf https://astral.sh/uv/install.sh | sh` or `brew install uv`). It provides Python 3.12–3.14
 and every dependency, so you do not need a system Python. Then run `uv sync`.
 
 Run every command in this guide and in [`AGENTS.md`](AGENTS.md) through `uv run`
@@ -189,7 +189,7 @@ The most restrictive of the three fields governs any given use; see `LICENSE`.
 
 ## Code Standards
 
-- Python 3.12+
+- Python 3.12–3.14
 - Type hints encouraged
 - pathlib for all file paths
 - No hardcoded absolute paths
