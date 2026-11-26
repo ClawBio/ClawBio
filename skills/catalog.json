@@ -398,7 +398,12 @@
       "has_demo": true,
       "demo_command": "python skills/bio-orchestrator/orchestrator.py --demo",
       "dependencies": [],
-      "tags": [],
+      "tags": [
+        "bioinformatics",
+        "genomics",
+        "workflows",
+        "reproducibility"
+      ],
       "trigger_keywords": [
         "route",
         "which skill",
