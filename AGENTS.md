@@ -345,6 +345,7 @@ uv run python tests/benchmark/mock_api_server.py &
 ## Git Workflow
 
 - **Claim an issue before you start work on it**: follow [Working on an Issue](CONTRIBUTING.md#working-on-an-issue).
+- **Filing a bug**: use `.github/ISSUE_TEMPLATE/bug_report.md` as the body and fill in every section. Report only what you ran, never what you read in the code.
 - Branch from `main` in a new git worktree and run `uv sync` in it (each worktree needs its own `.venv`), so agents can work in parallel — name branches `feat/<skill-name>` or `fix/<skill-name>`
 - **One skill per PR** — keep changes focused
 - Update `skills/catalog.json` if you changed any SKILL.md YAML frontmatter
@@ -360,8 +361,8 @@ uv run python tests/benchmark/mock_api_server.py &
   `uv run python scripts/generate_catalog.py`, run the gate, then revert.
 - Say what each result rests on. **Reproduced live**: real data or the real service.
   **Reproduced synthetic**: a mock, fixture or fault injection; it shows what the code does if
-  the condition happens, not that it happens. **Read-only**: from reading the code; say what
-  would confirm it.
+  the condition happens, not that it happens. A claim you have only read in the code is not a
+  result: run it or leave it out.
 - Rate severity from that evidence. A failure shown only with synthetic input is a robustness
   note, not a bug, until you show the condition occurs: live, or documented by the upstream
   service. For code that calls an external API, run it against the real API before calling it
