@@ -19,4 +19,4 @@ Closes #
 
 ## Test output
 
-<!-- Paste pytest output or describe how you tested -->
+<!-- Paste the pytest output and the commands you ran, with what they printed. Do not describe it from memory. -->
