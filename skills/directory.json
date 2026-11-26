@@ -893,7 +893,12 @@
       "description": "Compute HEIM diversity and equity metrics from VCF or ancestry data. Generates heterozygosity, FST, PCA plots, and a composite HEIM Equity Score with markdown reports.",
       "version": "0.1.0",
       "trigger_keywords": [],
-      "tags": []
+      "tags": [
+        "genomics",
+        "population-genetics",
+        "ancestry",
+        "vcf"
+      ]
     },
     {
       "name": "fastreer",
