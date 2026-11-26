@@ -173,7 +173,13 @@
       "has_demo": true,
       "demo_command": "python skills/archaic-introgression/archaic_introgression.py --demo",
       "dependencies": [],
-      "tags": [],
+      "tags": [
+        "genomics",
+        "population-genetics",
+        "ancestry",
+        "vcf",
+        "introgression"
+      ],
       "trigger_keywords": [
         "archaic introgression",
         "Neanderthal DNA",
