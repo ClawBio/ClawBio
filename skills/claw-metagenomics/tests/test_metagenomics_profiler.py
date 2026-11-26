@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import pytest
 from inline_snapshot import snapshot
 
-from clawbio.common import demo_runner
+SKILL_DIR = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(SKILL_DIR))
+
+import metagenomics_profiler as mp  # noqa: E402
+
+from clawbio.common import demo_runner  # noqa: E402
 
 # ── Demo output snapshot ──────────────────────────────────────────────────────
 # Fails when a code change alters any demo number. If the change is intended,
@@ -166,3 +174,30 @@ mph(A)	macrolide	Not classified
 catA1	phenicol	Not classified
 floR	phenicol	Not classified
 """})
+
+
+def test_who_priority_pathogens_match_2024_list():
+    """The tiers hold the 2024 WHO Bacterial Priority Pathogens List the report cites."""
+    pathogens = {tier: info["pathogens"] for tier, info in mp.WHO_PRIORITY_ARGS.items()}
+    assert pathogens == {
+        "Critical": [
+            "Acinetobacter baumannii",
+            "Enterobacterales",
+            "Mycobacterium tuberculosis",
+        ],
+        "High": [
+            "Salmonella Typhi",
+            "Shigella",
+            "Enterococcus faecium",
+            "Pseudomonas aeruginosa",
+            "Non-typhoidal Salmonella",
+            "Neisseria gonorrhoeae",
+            "Staphylococcus aureus",
+        ],
+        "Medium": [
+            "Group A streptococci",
+            "Streptococcus pneumoniae",
+            "Haemophilus influenzae",
+            "Group B streptococci",
+        ],
+    }

@@ -63,10 +63,8 @@ WHO_PRIORITY_ARGS: Dict[str, Dict[str, Any]] = {
     "Critical": {
         "pathogens": [
             "Acinetobacter baumannii",
-            "Pseudomonas aeruginosa",
-            "Enterobacteriaceae",
-            "Escherichia coli",
-            "Klebsiella pneumoniae",
+            "Enterobacterales",
+            "Mycobacterium tuberculosis",
         ],
         "drug_classes": ["carbapenem", "cephalosporin"],
         "arg_families": [
@@ -76,12 +74,13 @@ WHO_PRIORITY_ARGS: Dict[str, Dict[str, Any]] = {
     },
     "High": {
         "pathogens": [
+            "Salmonella Typhi",
+            "Shigella",
             "Enterococcus faecium",
-            "Staphylococcus aureus",
-            "Helicobacter pylori",
-            "Campylobacter",
-            "Salmonella",
+            "Pseudomonas aeruginosa",
+            "Non-typhoidal Salmonella",
             "Neisseria gonorrhoeae",
+            "Staphylococcus aureus",
         ],
         "drug_classes": [
             "vancomycin", "methicillin", "clarithromycin",
@@ -94,9 +93,10 @@ WHO_PRIORITY_ARGS: Dict[str, Dict[str, Any]] = {
     },
     "Medium": {
         "pathogens": [
+            "Group A streptococci",
             "Streptococcus pneumoniae",
             "Haemophilus influenzae",
-            "Shigella",
+            "Group B streptococci",
         ],
         "drug_classes": ["penicillin", "ampicillin"],
         "arg_families": ["PBP", "TEM", "ROB"],

@@ -138,22 +138,25 @@ The skill works with any shotgun metagenome but has been validated on:
 
 ## WHO-Critical ARG Detection
 
-A key feature is the classification of detected resistance genes by WHO priority tier:
+A key feature is the classification of detected resistance genes by WHO priority tier, from the [WHO Bacterial Priority Pathogens List 2024](https://www.who.int/news/item/17-05-2024-who-updates-list-of-drug-resistant-bacteria-most-threatening-to-human-health):
 
 | Priority | Pathogen | Resistance |
 |----------|----------|------------|
 | Critical | *Acinetobacter baumannii* | Carbapenem-resistant |
-| Critical | *Pseudomonas aeruginosa* | Carbapenem-resistant |
-| Critical | *Enterobacteriaceae* | Carbapenem-resistant, 3rd-gen cephalosporin-resistant |
+| Critical | Enterobacterales | 3rd-gen cephalosporin-resistant |
+| Critical | Enterobacterales | Carbapenem-resistant |
+| Critical | *Mycobacterium tuberculosis* | Rifampicin-resistant |
+| High | *Salmonella* Typhi | Fluoroquinolone-resistant |
+| High | *Shigella* spp. | Fluoroquinolone-resistant |
 | High | *Enterococcus faecium* | Vancomycin-resistant |
-| High | *Staphylococcus aureus* | Methicillin-resistant, vancomycin-resistant |
-| High | *Helicobacter pylori* | Clarithromycin-resistant |
-| High | *Campylobacter* | Fluoroquinolone-resistant |
-| High | *Salmonella* spp. | Fluoroquinolone-resistant |
-| High | *Neisseria gonorrhoeae* | 3rd-gen cephalosporin-resistant, fluoroquinolone-resistant |
-| Medium | *Streptococcus pneumoniae* | Penicillin-non-susceptible |
+| High | *Pseudomonas aeruginosa* | Carbapenem-resistant |
+| High | Non-typhoidal *Salmonella* | Fluoroquinolone-resistant |
+| High | *Neisseria gonorrhoeae* | 3rd-gen cephalosporin- and/or fluoroquinolone-resistant |
+| High | *Staphylococcus aureus* | Methicillin-resistant |
+| Medium | Group A streptococci | Macrolide-resistant |
+| Medium | *Streptococcus pneumoniae* | Macrolide-resistant |
 | Medium | *Haemophilus influenzae* | Ampicillin-resistant |
-| Medium | *Shigella* spp. | Fluoroquinolone-resistant |
+| Medium | Group B streptococci | Penicillin-resistant |
 
 ## Usage
 
