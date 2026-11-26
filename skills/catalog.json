@@ -4646,13 +4646,7 @@
       "has_demo": true,
       "demo_command": "python skills/struct-predictor/struct_predictor.py --demo",
       "dependencies": [],
-      "tags": [
-        "protein-structure",
-        "structural-biology",
-        "protein-modeling",
-        "boltz",
-        "openfold"
-      ],
+      "tags": [],
       "trigger_keywords": [],
       "chaining_partners": [],
       "license": "MIT",
