@@ -3499,7 +3499,7 @@
     {
       "name": "pathway-enricher",
       "cli_alias": "pathway-enricher",
-      "description": "Gene-set pathway enrichment analysis using Enrichr — queries KEGG, GO (BP/MF/CC), Reactome, WikiPathways, MSigDB, and Disease Ontology. Produces ranked pathway tables, interactive bubble charts, and a reproducible Markdown report.",
+      "description": "Gene-set pathway enrichment analysis using Enrichr — queries KEGG, GO (BP/MF/CC), Reactome and WikiPathways. Produces ranked pathway tables, bubble charts, and a reproducible Markdown report.",
       "version": "0.1.0",
       "status": "planned",
       "maturity_tier": "cli-registered",
