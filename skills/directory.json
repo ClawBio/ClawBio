@@ -2480,7 +2480,12 @@
       "description": "Protein structure prediction with Boltz-2 (default) or OpenFold3. Accepts YAML inputs (single protein or multi-chain complex), runs the chosen backend offline, extracts per-residue pLDDT and PAE confidence, and writes a markdown report with figures.",
       "version": "0.3.0",
       "trigger_keywords": [],
-      "tags": []
+      "tags": [
+        "bioinformatics",
+        "genomics",
+        "protein-properties",
+        "foundation-model"
+      ]
     },
     {
       "name": "target-validation-scorer",

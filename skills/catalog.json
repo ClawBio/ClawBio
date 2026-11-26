@@ -4646,7 +4646,12 @@
       "has_demo": true,
       "demo_command": "python skills/struct-predictor/struct_predictor.py --demo",
       "dependencies": [],
-      "tags": [],
+      "tags": [
+        "bioinformatics",
+        "genomics",
+        "protein-properties",
+        "foundation-model"
+      ],
       "trigger_keywords": [],
       "chaining_partners": [],
       "license": "MIT",
