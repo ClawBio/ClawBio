@@ -199,7 +199,7 @@ The most restrictive of the three fields governs any given use; see `LICENSE`.
 
 AI coding agents (Codex, Devin, Claude Code, Cursor, etc.) should follow the same workflow as human contributors, plus:
 
-1. Read [`AGENTS.md`](AGENTS.md) for setup, commands, code style, and project structure
+1. Read [`AGENTS.md`](AGENTS.md) for setup, commands, and code style
 2. Read the target skill's `SKILL.md` before modifying any code
 3. Use `uv run python clawbio.py list` to verify skills still load after changes
 4. Run `uv run pytest skills/your-skill-name/tests/ -v` to confirm your skill's tests pass
