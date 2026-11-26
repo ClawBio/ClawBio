@@ -111,6 +111,7 @@ def main() -> None:
     """Entry point: resolve input mode, fetch trials, write all outputs."""
     args = _build_parser().parse_args()
 
+    query_info: dict = {}
     gene_context: dict | None = None
     trials: list[dict] = []
     recruiting: int = 0
