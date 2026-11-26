@@ -1671,7 +1671,12 @@
       "has_demo": true,
       "demo_command": "python clawbio.py run equity --demo",
       "dependencies": [],
-      "tags": [],
+      "tags": [
+        "genomics",
+        "population-genetics",
+        "ancestry",
+        "vcf"
+      ],
       "trigger_keywords": [
         "HEIM",
         "equity",
