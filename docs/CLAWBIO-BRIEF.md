@@ -184,7 +184,6 @@ The original February 2026 meetup context that launched this brief has been arch
 - **Remediation Plan**: [REMEDIATION-PLAN.md](../REMEDIATION-PLAN.md)
 - **Slides**: [clawbio.github.io/ClawBio/slides/](https://clawbio.github.io/ClawBio/slides/)
 - **Reference Genome**: [docs/reference-genome.md](reference-genome.md)
-- **Tutorial**: [Install your own RoboTerri](tutorial-roboterri-install.md)
 - **OpenClaw**: [github.com/openclaw/openclaw](https://github.com/openclaw/openclaw)
 - **ClawHub**: [clawhub.ai](https://clawhub.ai)
 

@@ -121,7 +121,7 @@ Source:     CPIC Guideline (2022)
 
 **Required**:
 - Python 3.10+ (standard library only)
-- Claude vision API access (for photo identification — handled by RoboTerri or agent)
+- A vision-capable model in the agent host (for photo identification)
 
 ## Safety
 
@@ -130,11 +130,11 @@ Source:     CPIC Guideline (2022)
 - **CPIC-grounded**: All recommendations trace to published guidelines
 - **No diagnosis**: Classification labels are informational, not prescriptive
 
-## Telegram Integration
+## Agent Integration
 
-Send a drug photo to RoboTerri. Claude vision identifies the drug and calls:
+Send a drug photo to any agent host with a vision model. The model identifies the drug and dose from the packaging, then runs:
 ```
-clawbio(skill="drugphoto", mode="demo", drug_name="Plavix", visible_dose="75mg")
+python clawbio.py run drugphoto --demo --drug Plavix --dose 75mg
 ```
 
 ## Integration with Bio Orchestrator

@@ -1,6 +1,6 @@
 # Drug Photo Demo Images
 
-Drag these images into RoboTerri's Telegram chat for live demos.
+Drag these images into an agent chat with a vision model for live demos.
 Results are checked against Manuel's real 23andMe genotype data.
 
 ## Priority Demo Drugs

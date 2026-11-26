@@ -72,7 +72,7 @@ uv run python clawbio.py run pharmgx --demo
 **Agent skills, most with runnable demo data (live count in the badge above and `skill_count` in [`skills/catalog.json`](skills/catalog.json)) + 8,182 Galaxy tools + 5,040 tests + benchmark validation. Local-first by default. Reproducible. No guessing.**
 > **v0.7.1 released** (5 Sep 2026): tagged releases publish to PyPI on their own again, plus a security policy ([SECURITY.md](SECURITY.md)) and a [data-handling page](docs/data-handling.md). It follows v0.7.0, which brought the genomics skills into your editor as Agent Skills and deprecated the MCP server. [Release notes](https://github.com/ClawBio/ClawBio/releases/tag/v0.7.1). DOI: [10.5281/zenodo.19420648](https://doi.org/10.5281/zenodo.19420648).
 
-Snap a photo of a medication in Telegram. ClawBio identifies the drug from the packaging, queries your pharmacogenomic profile from [your own genome](docs/demo-genome.md), and returns a personalised dosage card — on your machine, in seconds:
+Snap a photo of a medication and send it to your agent. ClawBio identifies the drug from the packaging, queries your pharmacogenomic profile from [your own genome](docs/demo-genome.md), and returns a personalised dosage card — on your machine, in seconds:
 
 <p align="center">
   <img src="skills/drug-photo/demo-images/00-00-warfarin.jpg" width="360" alt="Warfarin 2mg medication packaging — ClawBio identifies the drug from a photo and returns a personalised pharmacogenomic report">
@@ -307,9 +307,9 @@ python pharmgx_reporter.py --input demo_patient.txt --output report
 
 ### Drug Photo — *Personal Scale*
 
-Snap a photo of any medication in Telegram. ClawBio identifies the drug from the packaging and returns a personalised dosage card against your own genotype.
+Send a photo of any medication to an agent with a vision model. ClawBio identifies the drug from the packaging and returns a personalised dosage card against your own genotype.
 
-- Claude vision extracts drug name and visible dose from the photo
+- The agent's vision model extracts drug name and visible dose from the photo
 - Cross-references your 23andMe genotype against 31 PGx SNPs
 - Four-tier classification: **STANDARD DOSING / USE WITH CAUTION / AVOID / INSUFFICIENT DATA**
 - Correct VKORC1 complement-strand handling (23andMe reports minus strand for rs9923231)
@@ -318,8 +318,6 @@ Snap a photo of any medication in Telegram. ClawBio identifies the drug from the
 ```bash
 python pharmgx_reporter.py --drug warfarin --dose "5mg" --input my_23andme.txt --output report
 ```
-
-> No command needed in Telegram — send any medication photo and RoboTerri triggers the skill automatically.
 
 ### GWAS Lookup — *Population Scale*
 
@@ -396,7 +394,7 @@ ClawBio is first and foremost a local bioinformatics skill library. You can exec
 
 The OpenClaw-borrowed "magic" happens when an external LLM interprets a user's request and translates it into those local library or command-line calls. In other words, the LLM operates at the orchestration layer, while the biological data processing remains local, inspectable, and reproducible.
 
-To experience that orchestration layer conversationally, ClawBio can be used through Telegram or Discord via RoboTerri, as a Claude Code skill, or through a self-hosted OpenClaw gateway with browser-based webchat. Of these options, the self-hosted OpenClaw gateway offers the strongest privacy story together with LLM-assisted interaction, because the LLM stays at the meta/orchestration level rather than operating on the underlying biological data themselves.
+To experience that orchestration layer conversationally, ClawBio can be used as a Claude Code skill, or through a self-hosted OpenClaw gateway with browser-based webchat. Of these options, the self-hosted OpenClaw gateway offers the strongest privacy story together with LLM-assisted interaction, because the LLM stays at the meta/orchestration level rather than operating on the underlying biological data themselves.
 
 ### Install and run
 
@@ -516,7 +514,6 @@ Some skills have additional requirements, declared in that skill's own `SKILL.md
 | Celltype Specificity Profiler | scanpy, anndata | `uv add scanpy anndata numpy scipy pandas` |
 | Drug Repurposing Screen | pyarrow (parquet engine) | `pip install numpy pandas scipy pyyaml pyarrow` |
 | Proteomics Clock | seaborn | `pip install pandas numpy matplotlib seaborn requests` |
-| RoboTerri (`robotary/`) | fastapi | **Undocumented in its own SKILL.md as of this writing.** `uv add fastapi` |
 
 No Docker or Singularity required for core functionality. Skills that need external bioinformatics tools document their setup in their own `SKILL.md`.
 
@@ -524,55 +521,9 @@ No Docker or Singularity required for core functionality. Skills that need exter
 
 ## Conversational Interfaces
 
-### RoboTerri
-
-<p align="center">
-  <img src="img/terri_attwood_avatar_top_left.png" alt="RoboTerri" width="250">
-  <br><em>RoboTerri — ClawBio's messaging-facing agent, inspired by <a href="https://en.wikipedia.org/wiki/Teresa_Attwood">Prof. Teresa K. Attwood</a></em>
-</p>
-
-**RoboTerri** is the messaging-facing interface to ClawBio. It currently runs over Telegram and Discord, letting an external LLM interpret free-text requests and translate them into local ClawBio skill executions. The public demo bot runs against a real human genome ([Manuel Corpas](https://en.wikipedia.org/wiki/Manuel_Corpas), CC0 public domain). Named after [Prof. Teresa K. Attwood](https://en.wikipedia.org/wiki/Teresa_Attwood) — a pioneer of bioinformatics education, founding Chair of GOBLET, and winner of the 2021 ISCB Outstanding Contributions Award.
-
-<p align="center">
-  <a href="https://t.me/RoboTerri_bot">
-    <img src="demo/roboterri-preview.gif" alt="RoboTerri Telegram bot demo — querying a real genome" width="300">
-  </a>
-  <br>
-  <a href="https://t.me/RoboTerri_bot"><strong>Try RoboTerri now — no install needed →</strong></a>
-</p>
-
-Ask it anything:
-
-- **"Give me my pharmacogenomic summary"** — analyses 12 genes, 51 drugs
-- **"What diseases am I at risk for?"** — polygenic risk scores for 6 conditions
-- **Send a photo of any medication** — checks CYP2D6/CYP2C19 metaboliser status
-- `/demo pharmgx` `/demo prs` `/demo nutrigx` `/demo compare` `/demo profile`
-
-```
-You:        [send 23andMe file]
-RoboTerri:  Running PharmGx Reporter...
-            CYP2D6 *4/*4 — Poor Metabolizer → 10 drugs AVOID
-            [report.md attached]
-            [3 figures attached]
-
-You:        [send photo of warfarin packet]
-RoboTerri:  Warfarin detected. Running Drug Photo skill...
-            CYP2C9 *1/*2 · VKORC1 High Sensitivity
-            AVOID — DO NOT USE at standard dose.
-
-You:        run gwas-lookup rs3798220
-RoboTerri:  Querying 9 databases...
-            rs3798220 (LPA) — coronary artery disease, Lp(a) levels.
-            eQTL in liver (GTEx). gnomAD MAF 0.07.
-```
-
-RoboTerri auto-detects file type (23andMe `.txt`, AncestryDNA `.csv`, VCF, FASTQ) and routes to the right skill via the Bio Orchestrator. Photos of medications trigger the Drug Photo skill automatically — no command needed.
-
-> **[Install your own RoboTerri](docs/tutorial-roboterri-install.md)**: Set up your own Telegram or Discord adapter running ClawBio skills in ~20 minutes.
-
 ### OpenClaw Gateway
 
-The **OpenClaw gateway** is the direct, self-hosted browser/webchat interface for ClawBio. Instead of routing through Telegram or Discord, it places a chat client directly in front of a local gateway that orchestrates ClawBio skill calls on your machine.
+The **OpenClaw gateway** is the direct, self-hosted browser/webchat interface for ClawBio. It places a chat client directly in front of a local gateway that orchestrates ClawBio skill calls on your machine.
 
 This is the strongest privacy-preserving conversational setup in the ClawBio stack. It avoids reliance on external messenger platforms, keeps operational control in your hands, and lets the LLM remain at the orchestration layer while the biological analysis itself stays local.
 
@@ -611,7 +562,7 @@ CLI (clawbio.py)     Python (import clawbio)     Claude Code
         │                     │                    │
         └─────────────┬───────┴──────────────┬─────┘
                       │                      │
-        OpenClaw Gateway (webchat)    RoboTerri (Telegram/Discord)
+        OpenClaw Gateway (webchat)    Other agent hosts
                       │                      │
                       └──────────┬───────────┘
                                  │
@@ -633,7 +584,7 @@ CLI (clawbio.py)     Python (import clawbio)     Claude Code
                           └─────────────┘
 ```
 
-Each skill is standalone — the orchestrator routes to the right one, but every skill also works independently. The `clawbio.run_skill()` API is importable by any agent or adapter layer (RoboTerri, Claude Code, or an OpenClaw gateway), and it remains usable directly from local Python without any conversational interface at all.
+Each skill is standalone — the orchestrator routes to the right one, but every skill also works independently. The `clawbio.run_skill()` API is importable by any agent or adapter layer (Claude Code, an OpenClaw gateway, or any other agent host), and it remains usable directly from local Python without any conversational interface at all.
 
 See [docs/architecture.md](docs/architecture.md) for the full design.
 
@@ -686,9 +637,7 @@ ClawBio follows [Semantic Versioning](https://semver.org/). The current release 
 
 ## Links
 
-- **Try RoboTerri**: [t.me/RoboTerri_bot](https://t.me/RoboTerri_bot) -- query a real genome on Telegram, no install needed
 - **Slides**: [clawbio.github.io/ClawBio/slides/](https://clawbio.github.io/ClawBio/slides/)
-- **Tutorial**: [Install your own RoboTerri](docs/tutorial-roboterri-install.md)
 - **OpenClaw**: [github.com/openclaw/openclaw](https://github.com/openclaw/openclaw) -- the agent platform
 - **ClawHub**: [clawhub.ai](https://clawhub.ai) -- skill registry
 - **HEIM Index**: [heim-index.org](https://heim-index.org) -- Health Equity Index for Minorities

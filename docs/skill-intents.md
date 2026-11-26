@@ -1,5 +1,9 @@
 # Skill Intent Descriptors
 
+> **Note:** RoboTerri, the Telegram, Discord and WhatsApp bot this page describes as the chat
+> adapter, has been removed from ClawBio. The skill-side contract and the runner behaviour below are
+> unchanged, and any agent host can consume them; the adapter passages describe how RoboTerri used them.
+
 ClawBio chat adapters use `clawbio.skill_intents.plan_skill_intent()` to map
 natural-language requests into deterministic `clawbio.py run ...` plans. A
 skill can publish optional routing metadata beside its `SKILL.md` without

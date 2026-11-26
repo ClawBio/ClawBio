@@ -205,7 +205,6 @@ ClawBio/
 ├── GENOMEBOOK/             # Synthetic-genetics sandbox data and reports
 ├── corpas-30x/             # Corpas 30x WGS reference genome and benchmark inputs
 ├── docs/                   # Tutorials and reference docs
-├── bot/                    # RoboTerri Telegram integration
 ├── pyproject.toml          # Dependencies and optional extras (pinned by uv.lock)
 ├── pytest.ini              # Test configuration
 ├── Makefile                # Convenience targets

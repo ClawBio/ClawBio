@@ -259,9 +259,6 @@ jobs:
       - name: Test ClawBio CLI
         run: uv run python clawbio.py list
 
-      - name: Run bot security tests
-        run: uv run pytest bot/tests/test_security.py -v
-
       # Repo-level tests were never run by this job. It used to name skill
       # test files individually, so `tests/` was invisible to CI: both
       # test_generate_catalog.py and the bench-baseline gate's own tests could
