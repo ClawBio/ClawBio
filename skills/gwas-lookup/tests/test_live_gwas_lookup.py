@@ -32,3 +32,18 @@ def test_live_every_source_answers(tmp_path) -> None:
     gwas_lookup.run_lookup("rs3798220", tmp_path / "out", use_cache=False, make_figures=False)
     summary = json.loads((tmp_path / "out" / "result.json").read_text())["summary"]
     assert summary["apis_failed"] == {}, summary["apis_failed"]
+    assert summary["total_phewas_finngen"] > 0
+
+
+@pytest.mark.skipif(
+    os.getenv("RUN_LIVE_TESTS") != "1",
+    reason="live tests gated on RUN_LIVE_TESTS=1",
+)
+def test_live_finngen_returns_rows() -> None:
+    from gwas_lookup_api import finngen
+
+    result = finngen.get_phewas("6", 160540105, "T", "C", use_cache=False)
+    assert result["status"] == "ok", result
+    assert result["total_associations"] > 0
+    assert result["associations"][0]["num_cases"] is not None
+    assert result["associations"][0]["num_controls"] is not None
