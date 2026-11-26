@@ -281,7 +281,7 @@ def _write_ld_outputs(payload: dict, output: Path) -> None:
     tsv_path = output / "ld_pairs.tsv"
     cols = ["lead_variant_id", "partner_variant_id", "r2", "dprime", "panel_id", "super_pop"]
     with tsv_path.open("w") as f:
-        f.write("# ld-1000g-region-compute v0.1.0\n")
+        f.write("# ld-1000g-region-compute v0.1.1\n")
         f.write(f"# panel: {payload['panel_id']}\n")
         f.write(f"# super_pop: {payload['super_pop']}\n")
         f.write(f"# plink: {payload['plink_version']}\n")
@@ -299,7 +299,7 @@ def _write_ld_outputs(payload: dict, output: Path) -> None:
 
     manifest = {
         "skill": "ld-1000g-region-compute",
-        "version": "0.1.0",
+        "version": "0.1.1",
         "lead": payload["lead"],
         "chromosome": payload["chromosome"],
         "window_bp": payload["window_bp"],

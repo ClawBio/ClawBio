@@ -7,7 +7,7 @@
 
 <p align="center">
   <a href="https://github.com/ClawBio/ClawBio/actions/workflows/ci.yml"><img src="https://github.com/ClawBio/ClawBio/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="#quick-start"><img src="https://img.shields.io/badge/python-3.11+-blue?logo=python&logoColor=white" alt="Python 3.11+"></a>
+  <a href="#quick-start"><img src="https://img.shields.io/badge/python-3.12+-blue?logo=python&logoColor=white" alt="Python 3.12+"></a>
   <a href="skills/catalog.json"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FClawBio%2FClawBio%2Fmain%2Fskills%2Fcatalog.json&query=%24.skill_count&label=skills&color=3fb950" alt="Skill count, read live from skills/catalog.json"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License"></a>
   <a href="https://luma.com/clawbio"><img src="https://img.shields.io/badge/Events-Follow_on_Luma-7c3aed" alt="Follow ClawBio Events on Luma"></a>
@@ -27,7 +27,7 @@
 ### Install in 30 seconds
 
 ```bash
-pip install clawbio                 # Python 3.11+
+pip install clawbio                 # Python 3.12+
 clawbio run pharmgx --demo
 ```
 
@@ -70,7 +70,7 @@ uv run python clawbio.py run pharmgx --demo
 ## What ClawBio Does Today
 
 **Agent skills, most with runnable demo data (live count in the badge above and `skill_count` in [`skills/catalog.json`](skills/catalog.json)) + 8,182 Galaxy tools + 5,040 tests + benchmark validation. Local-first by default. Reproducible. No guessing.**
-> **v0.5.0 released** (4 Apr 2026): Validation and Benchmark Infrastructure. AD ground truth benchmark, mock API server for offline testing, swappable fine-mapping pipeline (SuSiE vs ABF), 74 benchmark tests, red/green TDD mandate. [Release notes](https://github.com/ClawBio/ClawBio/releases/tag/v0.5.0). DOI: [10.5281/zenodo.19420648](https://doi.org/10.5281/zenodo.19420648).
+> **v0.7.1 released** (5 Sep 2026): tagged releases publish to PyPI on their own again, plus a security policy ([SECURITY.md](SECURITY.md)) and a [data-handling page](docs/data-handling.md). It follows v0.7.0, which brought the genomics skills into your editor as Agent Skills and deprecated the MCP server. [Release notes](https://github.com/ClawBio/ClawBio/releases/tag/v0.7.1). DOI: [10.5281/zenodo.19420648](https://doi.org/10.5281/zenodo.19420648).
 
 Snap a photo of a medication in Telegram. ClawBio identifies the drug from the packaging, queries your pharmacogenomic profile from [your own genome](docs/demo-genome.md), and returns a personalised dosage card — on your machine, in seconds:
 
@@ -196,7 +196,7 @@ The exact contents can vary by skill, and some replays also require the original
 
 A curated cross-section of ClawBio's skills. The full machine-readable catalog (with status flags, objective `maturity_tier` evidence, trigger keywords, demo commands, and chaining partners) lives in [`skills/catalog.json`](skills/catalog.json); browse the directory at [`skills/`](skills/) to see every skill folder.
 
-Catalog maturity tiers are computed from repository evidence: `spec-only` (SKILL.md only), `scripted` (has runnable code), `tested` (has skill tests), `cli-registered` (available via `python clawbio.py run`), `ci-validated` (explicitly tested in CI), and `bench-validated` (reserved for skills with blocking scientific benchmark validation).
+Catalog maturity tiers are computed from repository evidence: `spec-only` (SKILL.md only), `scripted` (has runnable code), `tested` (has skill tests), `cli-registered` (available via `python clawbio.py run`), and `bench-validated` (reserved for skills with blocking scientific benchmark validation).
 
 | Skill | Scale | Description |
 |-------|-------|-------------|
@@ -405,7 +405,7 @@ pip install clawbio                      # or: conda install -c bioconda clawbio
 clawbio run pharmgx --demo
 ```
 
-PharmGx demo runs in <2 seconds. Needs Python 3.11+. To develop ClawBio or get
+PharmGx demo runs in <2 seconds. Needs Python 3.12+. To develop ClawBio or get
 all skills with full demo data, work from a source checkout instead:
 
 ```bash

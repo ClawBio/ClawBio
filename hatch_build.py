@@ -60,9 +60,9 @@ SKIP_SUFFIXES = {".pyc", ".pyo"}
 def _declared_licence(skill_md: Path) -> str:
     """Read `license:` from a SKILL.md YAML frontmatter block.
 
-    Deliberately a local copy of scripts/generate_catalog.py's frontmatter
-    reader: scripts/ is not in the sdist (see tool.hatch.build.targets.sdist),
-    so importing it here would break any wheel built from an unpacked sdist.
+    Deliberately not clawbio.common.skill_manifest: that needs PyYAML, which the
+    build environment (requires = ["hatchling"]) does not have.
+    tests/test_licence_policy.py::test_both_licence_readers_agree keeps the two in step.
     """
     lines = skill_md.read_text(encoding="utf-8", errors="ignore").splitlines()
     if not lines or lines[0].strip() != "---":

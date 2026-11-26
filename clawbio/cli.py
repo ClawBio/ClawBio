@@ -19,6 +19,7 @@ Importable:
 """
 
 import argparse
+import difflib
 import json
 import os
 import re
@@ -30,6 +31,7 @@ from pathlib import Path
 
 from clawbio import __version__
 from clawbio.contract_alerts import append_contract_alert_log, normalise_contract_alerts
+from clawbio.common.skill_manifest import SkillManifestError, read_skill_manifest
 
 # --------------------------------------------------------------------------- #
 # Paths
@@ -363,6 +365,14 @@ SKILLS = {
         "allowed_extra_flags": set(),
         "accepts_genotypes": False,
     },
+    "seqtk-downsample": {
+        "script": SKILLS_DIR / "seqtk-downsample" / "seqtk_downsample.py",
+        "demo_args": ["--demo"],
+        "description": "Randomly downsample FASTQ files to N reads or a fraction with seqtk sample (single or paired-end, fixed seed)",
+        "extra_path_flags": {"--input2"},
+        "allowed_extra_flags": {"--input2", "--n-reads", "--fraction", "--seed"},
+        "accepts_genotypes": False,
+    },
     "phylo": {
         "script": SKILLS_DIR / "phylogenetics-builder" / "phylogenetics_builder.py",
         "demo_args": ["--demo"],
@@ -438,6 +448,35 @@ SKILLS = {
             "--accelerator",
         },
         "accepts_genotypes": False,
+    },
+    "scrna-embedding-audit": {
+        "script": SKILLS_DIR / "scrna-embedding-audit" / "scrna_embedding_audit.py",
+        "demo_args": ["--demo"],
+        "description": "scRNA Embedding Audit (scIB-style scores for any obsm embedding beside an in-run PCA baseline, half-sampling verdicts)",
+        "allowed_extra_flags": {
+            "--embeddings",
+            "--labels-key",
+            "--batch-key",
+            "--exclude-labels",
+            "--counts-layer",
+            "--allow-non-integer-counts",
+            "--n-top-hvg",
+            "--n-pcs",
+            "--lisi-neighbors",
+            "--graph-neighbors",
+            "--transfer-k",
+            "--max-cells",
+            "--n-resamples",
+            "--random-state",
+            "--expected-input-sha256",
+            "--overwrite",
+        },
+        "allowed_extra_flags_without_values": {
+            "--allow-non-integer-counts",
+            "--overwrite",
+        },
+        "accepts_genotypes": False,
+        "default_timeout_seconds": 1800,
     },
     "celltype-specificity-profiler": {
         "script": SKILLS_DIR / "celltype-specificity-profiler" / "profiler.py",
@@ -1083,10 +1122,7 @@ SKILLS = {
     },
     "methylation": {
         "script": SKILLS_DIR / "methylation-clock" / "methylation_clock.py",
-        "demo_args": [
-            "--input",
-            str(SKILLS_DIR / "methylation-clock" / "data" / "GSE139307_small.csv.gz"),
-        ],
+        "demo_args": ["--demo"],
         "description": "Epigenetic age from methylation clocks (PyAging)",
         "no_input_required": True,
         "allowed_extra_flags": {
@@ -1281,6 +1317,20 @@ SKILLS = {
         "no_input_required": True,
         "accepts_genotypes": False,
     },
+    "snp-phewas": {
+        "script": SKILLS_DIR / "snp-phewas" / "snp_phewas.py",
+        "demo_args": ["--demo"],
+        "description": "Variant PheWAS across Pan-UK Biobank, FinnGen R12 and the Million Veteran Program: every outcome with nulls, one effect allele, replication verdicts",
+        "default_timeout_seconds": 3600,
+        "allowed_extra_flags": {
+            "--variant", "--build", "--dataset", "--ancestry", "--all-outcomes", "--quick", "--outcomes",
+            "--finngen-route", "--workers", "--index-cache", "--list-datasets",
+        },
+        "allowed_extra_flags_without_values": {"--all-outcomes", "--quick", "--list-datasets"},
+        "extra_path_flags": {"--index-cache"},
+        "no_input_required": True,
+        "accepts_genotypes": False,
+    },
     "affprot": {
         "script": SKILLS_DIR / "affinity-proteomics" / "affinity_proteomics.py",
         "demo_args": ["--demo", "--platform", "olink"],
@@ -1438,6 +1488,42 @@ except DescriptorError as exc:
     # Descriptor routing is optional; keep the static registry usable if a
     # descriptor is malformed or violates descriptor security constraints.
     print(f"Warning: ignored invalid skill intent descriptor: {exc}", file=sys.stderr)
+
+
+def _folder_aliases() -> dict[str, str]:
+    """Skill folder name -> CLI alias, derived from each entry's script path.
+
+    When one folder backs several entries (pharmgx-reporter: pharmgx, drugphoto),
+    the first entry is the folder's main mode.
+    """
+    aliases: dict[str, str] = {}
+    for alias, info in SKILLS.items():
+        aliases.setdefault(info["script"].parent.name, alias)
+    return aliases
+
+
+def resolve_skill_name(name: str) -> str:
+    """Return the SKILLS key for a CLI alias or a skill folder name (gwas-prs -> prs).
+
+    Agents and ClawHub show the folder name; the registry is keyed by alias.
+    Unknown names come back unchanged so the caller reports them.
+    """
+    if name in SKILLS:
+        return name
+    return _folder_aliases().get(name, name)
+
+
+def _unknown_skill_message(name: str) -> str:
+    skill_md = SKILLS_DIR / name / "SKILL.md"
+    if skill_md.is_file():
+        return f"'{name}' has no `clawbio run` entry. Follow its SKILL.md ({skill_md})."
+    close = difflib.get_close_matches(name, [*SKILLS, *_folder_aliases()], n=3)
+    hint = f" Did you mean: {', '.join(close)}?" if close else ""
+    return (
+        f"Unknown skill '{name}'.{hint} "
+        "Run `clawbio list` to see skills; folder names and aliases both work."
+    )
+
 
 # Skills that run in the full-profile pipeline (order matters)
 FULL_PROFILE_PIPELINE = ["pharmgx", "nutrigx", "prs", "compare"]
@@ -1644,12 +1730,12 @@ def _failure_message(exit_code: int, stderr: str) -> str:
 def _skill_version(skill_name: str) -> str:
     """The SKILL.md frontmatter version, so an audit record says which methodology ran."""
     script = SKILLS.get(skill_name, {}).get("script")
-    try:
-        frontmatter = (script.parent / "SKILL.md").read_text(encoding="utf-8").split("---")[1]
-    except (AttributeError, OSError, IndexError):
+    if not script:
         return "unknown"
-    match = re.search(r"^\s*version:\s*['\"]?([^'\"\s]+)", frontmatter, re.M)
-    return match.group(1) if match else "unknown"
+    try:
+        return read_skill_manifest(script).version
+    except (SkillManifestError, OSError):
+        return "unknown"  # the audit record must not stop a run
 
 
 def run_skill(
@@ -1675,6 +1761,8 @@ def run_skill(
     from contextlib import suppress
 
     from clawbio.common.audit import skill_run
+
+    skill_name = resolve_skill_name(skill_name)
 
     # skill_run sees _SkillFailed first and marks the span ERROR; suppress then
     # drops it, so the caller still gets the result dict.
@@ -1720,7 +1808,7 @@ def _run_skill(
             "output_dir": None,
             "files": [],
             "stdout": "",
-            "stderr": f"Unknown skill '{skill_name}'. Available: {list(SKILLS.keys())}",
+            "stderr": _unknown_skill_message(skill_name),
             "duration_seconds": 0,
         }
 
@@ -2092,10 +2180,11 @@ def main():
     if (
         len(sys.argv) >= 4
         and sys.argv[1] == "run"
-        and sys.argv[2] in _NFCORE_PIPELINE_SKILLS
+        and resolve_skill_name(sys.argv[2]) in _NFCORE_PIPELINE_SKILLS
         and any(arg in {"-h", "--help"} for arg in sys.argv[3:])
     ):
-        subprocess.run([PYTHON, str(SKILLS[sys.argv[2]]["script"]), "--help"], check=False)
+        script = SKILLS[resolve_skill_name(sys.argv[2])]["script"]
+        subprocess.run([PYTHON, str(script), "--help"], check=False)
         return
 
     parser = argparse.ArgumentParser(
@@ -2117,7 +2206,9 @@ def main():
 
     # run
     run_parser = sub.add_parser("run", help="Run a skill")
-    run_parser.add_argument("skill", help="Skill name (e.g. pharmgx, equity, full-profile)")
+    run_parser.add_argument(
+        "skill", help="Skill folder name or CLI alias (e.g. gwas-prs or prs, pharmgx, full-profile)"
+    )
     run_parser.add_argument("--demo", action="store_true", help="Run with demo data")
     run_parser.add_argument("--input", dest="input_path", help="Path to input file")
     run_parser.add_argument("--output", dest="output_dir", help="Output directory")
@@ -2579,6 +2670,8 @@ def main():
             sys.exit(1)
 
     elif args.command == "run":
+        # Before every args.skill check below: they compare against aliases.
+        args.skill = resolve_skill_name(args.skill)
         skill_backend_profile = None
         if args.skill == "scrnaseq-pipeline" and _is_scrnaseq_backend_profile(getattr(args, "profile_path", None)):
             skill_backend_profile = args.profile_path

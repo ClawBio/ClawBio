@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+import shutil
 import sys
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
@@ -295,6 +296,26 @@ class TestDemoVcf:
         stats = VcfQC(cfg)._python_stats(write_demo_vcf(tmp_path / "demo.vcf"))
 
         assert cfg.min_titv_ratio <= stats["titv_ratio"] <= cfg.max_titv_ratio
+
+    @pytest.mark.skipif(shutil.which("bcftools") is None, reason="bcftools not installed")
+    def test_demo_vcf_passes_het_hom_gate_with_bcftools(self, tmp_path) -> None:
+        """bcftools now reports Het/Hom, so the demo must sit inside the QC range."""
+        cfg = QcConfig()
+        result = VcfQC(cfg).run(write_demo_vcf(tmp_path / "demo.vcf"), tmp_path / "qc")
+
+        assert result.passes_qc, result.fail_reasons
+        assert cfg.min_het_hom_ratio <= result.het_hom_ratio <= cfg.max_het_hom_ratio
+
+    @pytest.mark.skipif(shutil.which("bcftools") is None, reason="bcftools not installed")
+    def test_real_genome_passes_het_hom_gate_with_bcftools(self, corpas_chr20_vcf, tmp_path) -> None:
+        """A real 30x WGS chr20 subset stays inside the Het/Hom range under bcftools."""
+        if corpas_chr20_vcf is None:
+            pytest.skip("Corpas chr20 subset not available")
+        cfg = QcConfig()
+        result = VcfQC(cfg).run(corpas_chr20_vcf, tmp_path / "qc")
+
+        assert result.passes_qc, result.fail_reasons
+        assert cfg.min_het_hom_ratio <= result.het_hom_ratio <= cfg.max_het_hom_ratio
 
     @pytest.mark.parametrize("genotype", ["0/1", "1/1"])
     def test_demo_vcf_titv_is_within_qc_range_for_each_genotype(self, tmp_path, genotype) -> None:

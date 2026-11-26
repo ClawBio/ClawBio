@@ -27,14 +27,24 @@ sys.path.insert(0, str(SKILL_DIR))
 
 import locuscompare_region_render  # noqa: E402  (puts the sibling skills on sys.path)
 import regional_plot  # noqa: E402
-from _prefetched import PrefetchedEQTLClient, PrefetchedGWASClient  # noqa: E402
+from _prefetched import (  # noqa: E402
+    PrefetchedEQTLClient,
+    PrefetchedGWASClient,
+    gwas_variants_from_eqtl,
+    load_sumstats_tsv,
+)
 from _region_harmonise import (  # noqa: E402
     LOG_ODDS_DERIVED_LABEL,
     LOG_ODDS_FINNGEN_LABEL,
     OR_NO_SE_REASON,
 )
 from eqtl_catalogue_region_fetch import RegionVariant as EQTLRegionVariant  # noqa: E402
-from gwas_catalog_region_fetch import RegionVariant as GWASRegionVariant  # noqa: E402
+from gwas_catalog_region_fetch import (  # noqa: E402
+    GWASCatalogRelease,
+    RegionResult as GWASRegionResult,
+    RegionVariant as GWASRegionVariant,
+    _write_canonical_tsv,
+)
 from locuscompare_region_render import (  # noqa: E402
     LocusCompareSpec,
     render_locuscompare_for_lead,
@@ -194,6 +204,53 @@ def test_exposure_without_effect_sizes_names_the_exposure_side(tmp_path, es_pane
     reason = result.manifest_block["effect_size_panel_unavailable_reason"]
     assert "exposure study (QTD000341)" in reason
     assert "outcome" not in reason  # the outcome side converted fine
+
+
+def test_odds_ratios_survive_the_fetcher_tsv_round_trip(tmp_path, es_panel):
+    """Fetch -> canonical TSV -> pre-fetched outcome keeps the odds ratios. The TSV used
+    to carry beta/se only and the loader dropped beta-less rows, so this route lost an
+    OR-only study entirely. Also pins the CI-derived SE: (ln(hi) - ln(lo)) / (2 * 1.95996...),
+    the 95% CI."""
+    fetched = _or_outcome_rows()
+    tsv = tmp_path / "outcome.tsv"
+    _write_canonical_tsv(
+        GWASRegionResult(
+            accession=GCST, chromosome=CHROM, region_start_bp=LEAD_POS - 10_000,
+            region_end_bp=LEAD_POS + 10_000, n_variants=len(fetched), variants=fetched,
+            release=GWASCatalogRelease(
+                accession=GCST, harmonised_url="x", fetched_at_utc="2026-01-01T00:00:00Z",
+            ),
+        ),
+        tsv,
+    )
+    outcome = gwas_variants_from_eqtl(load_sumstats_tsv(tsv))
+    result = _render(tmp_path, outcome)
+
+    assert es_panel["n_drawn"] == len(_ROWS)
+    assert result.manifest_block["outcome_beta_source"] == "or_derived"
+    lead = next(p for p in es_panel["pairs"] if p.variant_id == LEAD)
+    assert lead.beta_outcome == pytest.approx(math.log(1.0516))
+    assert lead.se_outcome == pytest.approx(
+        (math.log(1.07) - math.log(1.03)) / (2 * 1.959963984540054)
+    )
+
+
+def test_prefetched_p_only_slice_renders_and_states_the_reason(tmp_path, es_panel):
+    """A pre-fetched row with a p-value but no beta is kept (it used to be dropped, so a
+    p-value-only outcome loaded as zero variants); a row with no p-value is dropped."""
+    tsv = tmp_path / "outcome.tsv"
+    lines = ["variant_id\tchromosome\tposition_bp\tallele_a\tallele_b\tbeta\tse\tp"]
+    for vid, pos, ref, alt, *_rest, p in _ROWS:
+        lines.append(f"{vid}\t{CHROM}\t{pos}\t{ref}\t{alt}\tNA\tNA\t{p}")
+    lines.append(f"15_45392000_A_C\t{CHROM}\t45392000\tA\tC\t0.1\t0.02\tNA")  # no p: dropped
+    tsv.write_text("\n".join(lines) + "\n")
+
+    outcome = gwas_variants_from_eqtl(load_sumstats_tsv(tsv))
+    assert len(outcome) == len(_ROWS) and all(v.beta is None for v in outcome)
+
+    result = _render(tmp_path, outcome)
+    assert es_panel["n_drawn"] == 0
+    assert "p-values only" in result.manifest_block["effect_size_panel_unavailable_reason"]
 
 
 def test_native_beta_outcome_is_unlabelled_and_unchanged(tmp_path, es_panel):
@@ -368,3 +425,25 @@ def test_an_ot_finngen_outcome_row_is_labelled_log_odds(tmp_path, es_panel, monk
     )
     assert LOG_ODDS_FINNGEN_LABEL in es_panel["ylabel"]
     assert result.manifest_block["outcome_effect_scale_label"] == LOG_ODDS_FINNGEN_LABEL
+
+
+def test_ld_with_no_pairs_says_why_the_points_are_hollow(tmp_path):
+    """An LD client that finds neither the lead nor any partner in its panel returns
+    no pairs instead of raising; the caption must then say LD is unavailable rather
+    than show an all-hollow plot with no caveat."""
+    from types import SimpleNamespace
+
+    class _EmptyLD:
+        def r2_with_lead(self, **_kw):
+            return SimpleNamespace(pairs=[], plink_version="plink test",
+                                   panel_id="panel", panel_version="v")
+
+    result = render_locuscompare_for_lead(
+        _spec(),
+        eqtl_client=PrefetchedEQTLClient(variants=_exposure_rows()),
+        gwas_client=PrefetchedGWASClient(variants=_or_outcome_rows(), accession=GCST),
+        ld_client=_EmptyLD(),
+        out_path=tmp_path / "lc.png",
+    )
+    caveats = " ".join(result.manifest_block.get("ancestry_caveats") or []) + " ".join(result.notes)
+    assert "LD r² unavailable" in caveats, caveats

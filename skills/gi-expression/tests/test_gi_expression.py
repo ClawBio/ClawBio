@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -14,12 +15,14 @@ from clawbio.gi.gi_runner import (
     EXPRESSION_MAX_BP,
     EXPRESSION_TSS_RADIUS,
     EXPRESSION_WINDOW_BP,
+    header_tss_index,
     validate_expression_input,
 )
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 SCRIPT = SKILL_DIR / "gi_expression.py"
 DEMO_INPUT = SKILL_DIR / "example_data" / "expression_hbb_k562.fa"
+SKILL_MD = SKILL_DIR / "SKILL.md"
 
 
 def test_demo_input_exists():
@@ -27,10 +30,44 @@ def test_demo_input_exists():
     assert DEMO_INPUT.stat().st_size > 1000
 
 
-def test_demo_fixture_is_exactly_one_window():
-    """The bundled fixture is exactly 9,198 bp, so it runs without --tss-index."""
-    _name, seq = read_fasta(DEMO_INPUT)
-    assert len(seq) == EXPRESSION_WINDOW_BP
+# HBB's canonical first exon, gene-sense: the 20 bases at the TSS offset. A
+# shifted, wrong-strand or re-centred fixture fails on these, not on length.
+HBB_TSS_BASES = "ACATTTGCTTCTGACACAAC"
+
+
+def test_demo_fixture_is_centred_on_the_tss_its_header_records():
+    """The bundled fixture is TSS-centred at the default's flank, the same file
+    as the official client's sample (gi-docs-site#33): the header records
+    ``tss_index``, the body is twice that long, and the TSS bases sit there."""
+    name, seq = read_fasta(DEMO_INPUT)
+    tss_index = header_tss_index(name)
+    assert tss_index is not None, f"demo header records no tss_index: {name}"
+    assert len(seq) == 2 * tss_index
+    assert seq[tss_index:tss_index + 20] == HBB_TSS_BASES
+
+
+def test_demo_sends_the_tss_index_from_its_header(tmp_path, monkeypatch):
+    """--demo with no --tss-index must send the header's offset, or a
+    fixture longer than 9,198 bp is refused locally."""
+    from clawbio.gi import gi_runner
+
+    sent = {}
+
+    class _StopClient:
+        def __init__(self, *a, **kw):
+            pass
+
+        def predict(self, task, **kw):
+            sent.update(kw)
+            raise gi_runner.GIError(500, {"error": {"code": "stop", "message": "captured"}})
+
+    monkeypatch.setattr(gi_runner, "Client", _StopClient)
+    monkeypatch.setattr(sys, "argv", ["gi_expression.py", "--demo", "--output", str(tmp_path / "out")])
+    rc = gi_runner.run_skill(task="expression", demo_path=DEMO_INPUT)
+    name, seq = read_fasta(DEMO_INPUT)
+    assert rc == 2, "the stub client stops the run after the request is built"
+    assert sent["tss_index"] == header_tss_index(name)
+    assert sent["sequence"] == seq
 
 
 def test_window_constants_match_the_api_contract():
@@ -63,6 +100,57 @@ def test_short_sequence_hint_does_not_promise_a_fixed_scored_window():
     assert "exactly one" not in problem
     assert "4599 bp from each end" in problem
     assert "recommended_flank_bp" in problem
+
+
+
+def test_short_sequence_hint_gives_the_flank_recipe():
+    """The hint is what an agent reads after sending too little; it must say how
+    much to fetch (the largest flank in the model list) and that the offset goes
+    in --tss-index, not just name the field."""
+    problem = validate_expression_input("A" * 600, None)
+    assert problem is not None
+    assert "largest" in problem and "recommended_flank_bp" in problem
+    assert "GET /v1/tasks/expression/models" in problem
+    assert "--tss-index" in problem
+
+
+def _skill_md_section(heading: str) -> str:
+    text = SKILL_MD.read_text(encoding="utf-8")
+    assert heading in text, f"SKILL.md has no {heading!r} section: no recipe for how much to fetch"
+    start = text.index(heading)
+    nxt = text.find("\n## ", start + len(heading))
+    return text[start: nxt if nxt != -1 else len(text)]
+
+
+def test_skill_md_does_not_name_a_default_expression_model():
+    """The default is ``default_model`` in the live listing, and it moves: it
+    became g0-expression-8192 on 2026-10-03 while this file still called
+    g0-expression the default. An agent that believes the prose sizes its input
+    for the wrong model and the API scores it without complaint."""
+    text = SKILL_MD.read_text(encoding="utf-8")
+    stale = re.findall(r"default\W{0,3}`?g0-expression[\w-]*", text, flags=re.I)
+    assert not stale, f"SKILL.md names a default model in prose: {stale}"
+
+
+def test_skill_md_derives_the_flank_from_the_model_list():
+    """How much to fetch is read from the model list at run time, never written
+    down: F is the largest bio_spec.recommended_flank_bp (at least 4,599, 2F
+    within request_max_bp), the sequence runs gene-sense from TSS - F to
+    TSS + F, and --tss-index is F."""
+    section = _skill_md_section("## Building the input from a gene")
+    for needle in (
+        "GET https://api.genomicintelligence.ai/v1/tasks/expression/models",
+        "largest",
+        "recommended_flank_bp",
+        "request_max_bp",
+        "4,599",
+        "reverse-complement",
+        "--tss-index",
+    ):
+        assert needle in section, f"recipe is missing {needle!r}"
+    text = SKILL_MD.read_text(encoding="utf-8")
+    for literal in ("40960", "40,960", "81920", "81,920"):
+        assert literal not in text, f"SKILL.md hard-codes a flank: {literal}"
 
 
 def test_oversized_sequence_is_rejected():
@@ -125,8 +213,9 @@ def test_demo_mode_predicts_high_hbb_k562_expression(tmp_path):
     log_tpm = body["summary"].get("log_tpm")
     # The floor sits well below the measured gene-sense value and well above
     # the wrong-strand one, because this test exists to catch a strand or
-    # plumbing regression, not to pin a prediction. On the bundled fixture
-    # gene-sense measured 0.95 and the genomic strand 0.06. Absolute values
+    # plumbing regression, not to pin a prediction. On the earlier 9,198 bp
+    # fixture gene-sense measured 0.95 and the genomic strand 0.06; the
+    # current TSS-centred fixture is longer, so re-measure. Absolute values
     # move when the model checkpoint changes — an earlier `> 2.0` here went
     # stale and failed against production. If this fires, re-measure both
     # strands before touching the number.

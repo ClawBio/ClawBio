@@ -92,8 +92,6 @@
     .showcase-skills { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.8rem; }
     .showcase-skill { background: rgba(63,185,80,0.12); border: 1px solid rgba(63,185,80,0.3); color: var(--accent); font-size: 0.75rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 999px; }
     @media (max-width: 600px) { .showcase-card { grid-template-columns: 1fr; text-align: center; justify-items: center; } }
-    .community-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
-    .community-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; }
     .cta-section { text-align: center; background: radial-gradient(ellipse 80% 60% at 50% 110%, rgba(63,185,80,0.1) 0%, transparent 70%); border-top: 1px solid var(--border); }
     .cta-section h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 700; margin-bottom: 1rem; }
     .cta-section p { color: var(--text-muted); margin-bottom: 2rem; font-size: 1.05rem; }
@@ -107,7 +105,7 @@
   <nav>
     <a class="nav-logo" href="#"><span>🦖</span> ClawBio</a>
     <ul class="nav-links">
-      <li><a href="#skills">Skills</a></li>
+      <li><a href="skills.html">Skills</a></li>
       <li><a href="#why">Why ClawBio</a></li>
       <li><a href="#showcase">Showcase</a></li>
       <li><a href="#community">Community</a></li>
@@ -121,7 +119,7 @@
   </nav>
   <a href="https://luma.com/clawbio" target="_blank" rel="noopener noreferrer" aria-label="Follow the ClawBio events calendar on Luma" style="display:block;background:linear-gradient(90deg,#7c3aed,#2563eb);color:#fff;text-align:center;padding:0.8rem 1rem;font-size:0.98rem;font-weight:700;text-decoration:none;">📅 Join the ClawBio community: follow the official calendar for hackathons, workshops, meetups and new events &rarr;</a>
   <section class="hero">
-    <div class="hero-badge">📊 Publicly benchmarked · 1,171 stars · 108 skills · 75 contributors · 6,234 tests</div>
+    <div class="hero-badge">📊 Publicly benchmarked · <span data-stat="stars">1,175</span> stars · <span data-stat="skills">109</span> skills · <span data-stat="contributors">76</span> contributors · <span data-stat="tests">6,295</span> tests</div>
     <h1>The first <em>bioinformatics-native</em><br>AI agent skill library</h1>
     <p>ClawBio is where biological AI gets its skills: a curated, reproducible, open repository any agent can call.</p>
     <div style="max-width:440px;margin:0 auto 2rem;">
@@ -177,7 +175,7 @@
             Then <code style="font-size:0.85rem;">/plugin install clawbio</code>. Other editors: copy or symlink the skill folders you need into <code style="font-size:0.85rem;">~/.agents/skills/</code>.
           </p>
           <ul style="list-style:none;padding:0;margin:0;color:var(--text-muted);font-size:0.92rem;line-height:1.9;">
-            <li>✅ <strong style="color:var(--text);">108 skills</strong>, 101 with a deterministic CLI entry point</li>
+            <li>✅ <strong style="color:var(--text);"><span data-stat="skills">109</span> skills</strong>, <span data-stat="cli">102</span> with a deterministic CLI entry point</li>
             <li>🔒 <strong style="color:var(--text);">Demo data included</strong>, your files only when you pass them</li>
             <li>🏠 <strong style="color:var(--text);">Local-first</strong>. No server, no hosted endpoint, by design</li>
           </ul>
@@ -269,7 +267,7 @@ clawbio run pharmgx --demo</pre>
   <section id="skills" style="background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
     <div class="section-inner">
       <div class="section-label">Skills Library</div>
-      <div class="section-title">108 skills · 102 with runnable demo data · 6,234 tests · 161 / 182 publicly benchmarked passing</div>
+      <div class="section-title"><span data-stat="skills">109</span> skills · <span data-stat="demo">103</span> with runnable demo data · <span data-stat="tests">6,295</span> tests · 161 / 182 publicly benchmarked passing</div>
       <p class="section-sub">Each skill includes demo data so you can try it immediately without your own files.</p>
       <div class="skills-grid">
         <div class="skill-card"><div><div class="skill-name">💊 PharmGx Reporter</div><div class="skill-desc">Pharmacogenomic report from 23andMe/AncestryDNA: 12 genes, 31 SNPs, 51 drugs, CPIC guidelines.</div></div><span class="skill-badge badge-mvp">MVP</span></div>
@@ -278,7 +276,7 @@ clawbio run pharmgx --demo</pre>
         <div class="skill-card"><div><div class="skill-name">📊 GWAS Polygenic Risk</div><div class="skill-desc">Calculate polygenic risk scores from DTC genetic data using curated PGS Catalog scores across 6 traits.</div></div><span class="skill-badge badge-mvp">MVP</span></div>
         <div class="skill-card"><div><div class="skill-name">⚖️ Equity Scorer</div><div class="skill-desc">Compute HEIM diversity and equity metrics from VCF or ancestry data: heterozygosity, FST, and population representation scores.</div></div><span class="skill-badge badge-mvp">MVP</span></div>
       </div>
-      <p style="color:var(--text-muted);margin-top:1.5rem;font-size:0.95rem;">+ 103 more skills on <a href="https://github.com/ClawBio/ClawBio" target="_blank" style="color:var(--accent);">GitHub</a> · <a href="/benchmarks.html" style="color:var(--accent2);">see which ones are publicly benchmarked &rarr;</a></p>
+      <p style="color:var(--text-muted);margin-top:1.5rem;font-size:0.95rem;">+ <span data-stat="more_skills">104</span> more skills in the <a href="skills.html" style="color:var(--accent);">full skill directory</a> · <a href="/benchmarks.html" style="color:var(--accent2);">see which ones are publicly benchmarked &rarr;</a></p>
     </div>
   </section>
   <section id="showcase">
@@ -309,19 +307,10 @@ clawbio run pharmgx --demo</pre>
   <section id="community">
     <div class="section-inner">
       <div class="section-label">Community</div>
-      <div class="section-title">Wanted: skills from the community</div>
+      <div class="section-title">Contribute a skill</div>
       <p class="section-sub">If you work with genomics, proteomics, metabolomics, imaging, or clinical data — wrap your pipeline as a skill.</p>
-      <div class="community-grid">
-        <div class="community-card"><div class="skill-name">claw-gwas</div><div class="skill-desc">PLINK/REGENIE automation — Statistical genetics</div></div>
-        <div class="community-card"><div class="skill-name">claw-acmg</div><div class="skill-desc">Clinical variant classification — Clinical genomics</div></div>
-        <div class="community-card"><div class="skill-name">claw-pathway</div><div class="skill-desc">GO/KEGG enrichment — Functional genomics</div></div>
-        <div class="community-card"><div class="skill-name">claw-phylogenetics</div><div class="skill-desc">IQ-TREE/RAxML automation — Evolutionary biology</div></div>
-        <div class="community-card"><div class="skill-name">claw-spatial</div><div class="skill-desc">Visium/MERFISH — Spatial transcriptomics</div></div>
-        <div class="community-card"><div class="skill-name">claw-long-reads</div><div class="skill-desc">ONT/PacBio QC and assembly — Long-read sequencing</div></div>
-        <div class="community-card" style="display:flex;align-items:center;justify-content:center;border-style:dashed;"><div style="text-align:center;color:var(--text-muted);"><div style="font-size:1.5rem;margin-bottom:0.4rem;">+</div><div class="skill-name">Your skill here</div></div></div>
-      </div>
       <div style="margin-top:2rem;display:flex;gap:1rem;flex-wrap:wrap;">
-        <a class="btn btn-primary" href="https://discord.gg/DHpmptyv" target="_blank">🎮 Join the Discord</a>
+        <a class="btn btn-primary" href="https://clawbio.ai/join/slack/" target="_blank">💬 Join the Slack</a>
         <a class="btn btn-primary" href="https://t.me/ClawBioContributors" target="_blank">💬 Join the Telegram</a>
         <a class="btn btn-secondary" href="https://github.com/ClawBio/ClawBio/blob/main/CONTRIBUTING.md" target="_blank">📖 Read the contribution guide</a>
       </div>
@@ -344,7 +333,7 @@ clawbio run pharmgx --demo</pre>
             </tr>
           </thead>
           <tbody>
-            <tr style="border-bottom:1px solid var(--border);background:rgba(63,185,80,0.05);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/ClawBio/ClawBio" target="_blank" style="color:var(--accent);">ClawBio</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">1,171</td><td style="padding:0.6rem 1rem;text-align:right;">291</td><td style="padding:0.6rem 1rem;text-align:right;">108</td></tr>
+            <tr style="border-bottom:1px solid var(--border);background:rgba(63,185,80,0.05);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/ClawBio/ClawBio" target="_blank" style="color:var(--accent);">ClawBio</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;"><span data-stat="stars">1,175</span></td><td style="padding:0.6rem 1rem;text-align:right;"><span data-stat="forks">293</span></td><td style="padding:0.6rem 1rem;text-align:right;"><span data-stat="skills">109</span></td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/FreedomIntelligence/OpenClaw-Medical-Skills" target="_blank" style="color:var(--accent2);">OpenClaw-Medical-Skills</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">1,037</td><td style="padding:0.6rem 1rem;text-align:right;">123</td><td style="padding:0.6rem 1rem;text-align:right;">869</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/GPTomics/bioSkills" target="_blank" style="color:var(--accent2);">bioSkills</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">331</td><td style="padding:0.6rem 1rem;text-align:right;">52</td><td style="padding:0.6rem 1rem;text-align:right;">425</td></tr>
             <tr style="border-bottom:1px solid var(--border);"><td style="padding:0.6rem 1rem;"><a href="https://github.com/wu-yc/LabClaw" target="_blank" style="color:var(--accent2);">LabClaw</a></td><td style="padding:0.6rem 1rem;text-align:center;color:var(--accent);">&#10003;</td><td style="padding:0.6rem 1rem;text-align:right;">317</td><td style="padding:0.6rem 1rem;text-align:right;">54</td><td style="padding:0.6rem 1rem;text-align:right;">211</td></tr>
@@ -362,73 +351,73 @@ clawbio run pharmgx --demo</pre>
       <div class="section-title">Latest from the community</div>
       <div style="display:grid;gap:0.75rem;max-width:700px;">
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">📖</span>
+          <span style="font-size:1.5rem;flex-shrink:0;">🏷️</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>docs(igv-validator): move CLI option table and methodology detail to references/.</strong> SKILL.md had grown to 5,330 words, over the skills guide's 5,000-word limit; the full CLI option table and the counting, flag, status and copy-number rules now live in <code style="font-size:0.85rem;">references/cli-options.md</code> and <code style="font-size:0.85rem;">references/methodology.md</code>, with SKILL.md keeping the everyday commands and a short summary. Contributed by @ShryukGrandhi.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #735 · merged · 2 November 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>docs(ukb-navigator): add metadata tags and regenerate catalog.</strong> Added four metadata tags (biobank, genomics, data-retrieval, literature) to <code style="font-size:0.85rem;">skills/ukb-navigator/SKILL.md</code> and regenerated <code style="font-size:0.85rem;">catalog.json</code>, <code style="font-size:0.85rem;">skills.html</code> and <code style="font-size:0.85rem;">directory.json</code> so the skill's keyword badges render. Contributed by @avaldivieso-meraki.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #934 · merged · 25 November 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🧵</span>
+          <span style="font-size:1.5rem;flex-shrink:0;">🛠️</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>fix(seq-wrangler): fold README.md into SKILL.md and remove it.</strong> Agents read SKILL.md, not the README, so the Options table, including that <code style="font-size:0.85rem;">--remove-duplicates</code> runs <code style="font-size:0.85rem;">samtools markdup -r</code>, now lives in the CLI Reference, and the samplesheet column names are corrected from <code style="font-size:0.85rem;">fastq1</code>/<code style="font-size:0.85rem;">fastq2</code> to the <code style="font-size:0.85rem;">fastq_1</code>/<code style="font-size:0.85rem;">fastq_2</code> the loader actually reads. Contributed by @ShryukGrandhi.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #727 · merged · 1 November 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>fix(catalog): stop guessing a --demo for two skills whose script has none.</strong> <code style="font-size:0.85rem;">generate_catalog.py</code> gave every skill with an entry script a <code style="font-size:0.85rem;">--demo</code> command regardless of whether the script accepted one; clawpathy-autoresearch failed the nightly sweep and clinical-variant-prioritizer silently exited 0 having run nothing. Both now report <code style="font-size:0.85rem;">has_demo: false</code>. Contributed by @camlloyd.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #911 · merged · 25 November 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🔬</span>
+          <span style="font-size:1.5rem;flex-shrink:0;">🧹</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>fix(nfcore-rnastructurome-wrapper): fold README.md into SKILL.md and remove it.</strong> The README's content already existed in SKILL.md under Core Capabilities, Workflow, Scope and Agent Boundary, so the file is deleted along with its two now-redundant references to it. Contributed by @ShryukGrandhi.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #728 · merged · 1 November 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>ci(sweep): skip the six gi-* demos, which need GI_API_KEY.</strong> The nightly demo sweep has no Genomic Intelligence key, so gi-annotation, gi-chromatin, gi-enhancer, gi-expression, gi-promoter and gi-splice failed every night; they are now skipped the same way flow-bio and labstep already are. Contributed by @camlloyd.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #910 · merged · 25 November 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">⚖️</span>
+          <span style="font-size:1.5rem;flex-shrink:0;">🔧</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>test(licence): record fastreer GPL-3.0 as subprocess-only and guard against in-process imports.</strong> fastreer (GPL-3.0) is only ever run as a subprocess with file handoff, never imported in-process; a new test walks every tracked <code style="font-size:0.85rem;">.py</code> file and fails if any skill loads a GPL skill directly, and SKILL.md now records how it is wired. Contributed by @ShryukGrandhi.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #729 · merged · 1 November 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>test(repro): pass CLAWBIO_ROOT to replays in three skills' bundle tests.</strong> Following #901's change to how <code style="font-size:0.85rem;">commands.sh</code> locates the ClawBio checkout, the reproducibility-bundle tests for claw-metagenomics, rare-disease-rnaseq and seq-wrangler replay from a temp folder outside the checkout and need <code style="font-size:0.85rem;">CLAWBIO_ROOT</code> set explicitly; fixes 10 nightly test failures. Contributed by @camlloyd.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #909 · merged · 25 November 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">📁</span>
+          <span style="font-size:1.5rem;flex-shrink:0;">🔤</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>docs: run uv sync in each new worktree.</strong> A worktree without its own <code style="font-size:0.85rem;">.venv</code> runs on whichever venv is active, so a skill script that does not put the repo root first on <code style="font-size:0.85rem;">sys.path</code> could import <code style="font-size:0.85rem;">clawbio</code> from <code style="font-size:0.85rem;">main</code> instead of the branch under test; AGENTS.md now tells agents to <code style="font-size:0.85rem;">uv sync</code> in every new worktree. Contributed by @camlloyd.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #721 · merged · 31 October 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>fix: write proteomics-clock outputs as UTF-8 with LF, and read repository text files as UTF-8 in tests.</strong> proteomics-clock's report, commands.sh and cache sidecars were written with the locale encoding, crashing on Windows for non-cp1252 paths and producing CRLF checksums that fail <code style="font-size:0.85rem;">sha256sum -c</code>; a companion fix adds explicit UTF-8 to 43 reads across <code style="font-size:0.85rem;">tests/</code> that otherwise mis-decode the catalog's non-ASCII keywords and README's box-drawing characters on Windows. Contributed by @mooreneural.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #914 and #915 · merged · 25 November 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🧬</span>
+          <span style="font-size:1.5rem;flex-shrink:0;">📄</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>fix(wgs-prs): give the demo VCF a realistic Ti/Tv ratio.</strong> The wgs-prs demo VCF reported a Ti/Tv ratio of 65.67, triggering a "Ti/Tv unusually high" QC warning on every demo run; the filler SNPs' alleles and genotypes are now varied so Ti/Tv lands near 2 for both heterozygous and homozygous calls, matching real whole-genome data. Contributed by @camlloyd.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #723 · merged · 31 October 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>docs(commands): run the demo in /analyse when the user has no file.</strong> Step 1 of <code style="font-size:0.85rem;">commands/analyse.md</code> told the agent to ask for an input file, contradicting AGENTS.md's mandatory demo fallback; the command now points to the skill's catalog <code style="font-size:0.85rem;">demo_command</code> (with <code style="font-size:0.85rem;">--output</code>) when no file is given, matching AGENTS.md. Contributed by @mooreneural.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #916 · merged · 25 November 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">📘</span>
+          <span style="font-size:1.5rem;flex-shrink:0;">📦</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>fix(nfcore-sarek-wrapper): fold README.md into SKILL.md and remove it.</strong> Agents load SKILL.md, not the README, so the two had drifted; the README's content is now folded into SKILL.md's CLI Reference and Demo sections and the stale file is deleted. Contributed by @ShryukGrandhi.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #724 · merged · 31 October 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>ci: publish via Trusted Publishing and re-enable metadata check.</strong> Package publishing now authenticates to PyPI over OIDC instead of an API token, now that the trusted publisher is registered; the pinned action's bundled twine also accepts Metadata-Version 2.5, so the release metadata check goes back on. Contributed by @camlloyd.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #799 · merged · 22 November 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">📗</span>
+          <span style="font-size:1.5rem;flex-shrink:0;">🧪</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>fix(nfcore-rnaseq-wrapper): fold README.md into SKILL.md and remove it.</strong> Same drift risk as nfcore-sarek-wrapper: the README was invisible to agents, so its one missing detail, the list of out-of-scope analyses, is now in SKILL.md's Scope section and the README is deleted. Contributed by @ShryukGrandhi.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #725 · merged · 31 October 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>test: snapshot demo outputs inline across 13 skills.</strong> A run of 13 PRs each add a <code style="font-size:0.85rem;">demo_snapshot</code> test pinning a skill's committed demo outputs, so a change that moves a result or a number fails CI: prs-applicability-gate, ena-fetch, geo-fetch, pride-fetch, lit-synthesizer, arrayexpress-fetch, biostudies-fetch, busco-assessor, crispr-screen-triage, deepspot-m, drug-repurposing-screen, galaxy-bridge and bioqc-mcp. Contributed by @camlloyd.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #823 and 12 more · merged · 19–21 November 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🧾</span>
+          <span style="font-size:1.5rem;flex-shrink:0;">🛠️</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>fix(wgs-prs): declare contigs and FORMAT fields in demo VCF and sort its records.</strong> Without <code style="font-size:0.85rem;">##contig</code> and <code style="font-size:0.85rem;">##FORMAT</code> header lines, bcftools 1.23+ refused to write the demo VCF's records, and unsorted chromosome blocks then broke indexing; the demo now declares both and writes records in sorted order. Contributed by @ShryukGrandhi.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #677 · merged · 30 October 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>fix(reproducibility): stop writing the checkout path into commands.sh.</strong> <code style="font-size:0.85rem;">write_portable_commands_sh</code> wrote the generating machine's checkout path into every <code style="font-size:0.85rem;">commands.sh</code> as the default <code style="font-size:0.85rem;">CLAWBIO_ROOT</code>, so a replay bundle only worked on the machine that produced it; it now finds the checkout from the bundle's own location or the current directory, or exits with a clear hint when run outside one. Contributed by @camlloyd.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #901 · merged · 21 November 2026</div>
           </div>
         </div>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">💊</span>
+          <span style="font-size:1.5rem;flex-shrink:0;">🔁</span>
           <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>drug-repurposing-screen: check the committed demo's values, not just its file names.</strong> A new test regenerates the demo bundle and compares every table's values against the committed copy, not just file names, so a generator change that silently shifted the numbers is now caught. Contributed by @danilomonge.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #718 · merged · 30 October 2026</div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>fix: move 5 skills onto the shared reproducibility writers.</strong> claw-metagenomics, rare-disease-rnaseq, seq-wrangler, eqtl-catalogue-region-fetch and locuscompare-region-render each hand-rolled their own reproducibility bundle; all five now use <code style="font-size:0.85rem;">clawbio.common.reproducibility</code>, fixing unquoted replay paths and checksums that could not resolve from the output directory along the way. Contributed by @camlloyd.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #895 and 4 more · merged · 20–21 November 2026</div>
           </div>
         </div>
       </div>
@@ -438,7 +427,7 @@ clawbio run pharmgx --demo</pre>
   <section id="contributors" style="background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);">
     <div class="section-inner" style="text-align:center;">
       <div class="section-title">Built in the open by a global community</div>
-      <p style="color:var(--text-muted);max-width:660px;margin:0 auto 2.5rem;">More than 75 contributors from labs around the world have shipped skills, fixes, and benchmarks into ClawBio. Every skill is a piece of someone's domain expertise, frozen into reproducible code that any agent can call.</p>
+      <p style="color:var(--text-muted);max-width:660px;margin:0 auto 2.5rem;">More than <span data-stat="contributors">76</span> contributors from labs around the world have shipped skills, fixes, and benchmarks into ClawBio. Every skill is a piece of someone's domain expertise, frozen into reproducible code that any agent can call.</p>
       <div style="display:flex;flex-wrap:wrap;gap:1.4rem;justify-content:center;max-width:900px;margin:0 auto;">
         <a href="https://github.com/camlloyd" target="_blank" title="Cameron Lloyd" style="text-decoration:none;display:flex;flex-direction:column;align-items:center;width:84px;">
           <img src="https://github.com/camlloyd.png?size=128" alt="Cameron Lloyd" width="64" height="64" loading="lazy" style="border-radius:50%;border:1px solid var(--border);background:var(--bg2);">
@@ -540,7 +529,7 @@ clawbio run pharmgx --demo</pre>
     <div class="footer-links">
       <a href="https://github.com/ClawBio/ClawBio" target="_blank">GitHub</a>
       <a href="https://luma.com/clawbio" target="_blank" rel="noopener noreferrer">📅 Events Calendar</a>
-      <a href="https://discord.gg/DHpmptyv" target="_blank">Discord</a>
+      <a href="https://clawbio.ai/join/slack/" target="_blank">Slack</a>
       <a href="https://t.me/ClawBioContributors" target="_blank">Telegram</a>
       <a href="https://docs.clawbio.ai" target="_blank">Docs</a>
       <a href="https://docs.clawbio.ai/research/" target="_blank">Research</a>

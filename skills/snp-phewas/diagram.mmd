@@ -1,0 +1,31 @@
+flowchart TD
+    Q["variant: rsID or chr_pos_ref_alt"] --> R["resolve on GRCh38<br/>Open Targets variant search<br/>several alleles at one position: most GWAS credible sets,<br/>then highest gnomAD frequency, then search order<br/>effect allele = the chosen id's alt"]
+    R --> M["place on GRCh37<br/>Ensembl assembly mapper"]
+    R --> FG_API["FinnGen web API<br/>one request, values only p &lt; 0.05"]
+    FG_API -->|censored endpoints, or API down| FG_TBX["FinnGen R12 endpoint files<br/>index walker, one position"]
+    M --> PAN["Pan-UK Biobank outcome files<br/>index walker, one position"]
+    R --> MVP["Million Veteran Program<br/>GWAS Catalog harmonized files, index walker<br/>CRLF lines; odds ratio to beta / SE from the file's p;<br/>p = 0 derived from beta / SE; autosomes only"]
+    MVPCAT[("MVP catalog: 7,537 studies<br/>harmonized / not harmonized /<br/>no summary statistics")] -.->|no readable file: a row with<br/>its reason, never read| ROWS
+    ANC["--ancestry AFR / AMR / CSA / EAS / MID / META<br/>each biobank's group; a biobank without it is named"] -.-> SCOPE
+    SCOPE{"scope"} -.->|default: outcomes with a readable counterpart<br/>in another biobank, the same rule in each;<br/>--all-outcomes: every outcome| PAN
+    SCOPE -.-> FG_TBX
+    SCOPE -.-> MVP
+    FG_API --> O
+    FG_TBX --> O
+    PAN --> O["orient on the effect allele<br/>swap = re-sign; palindromic swap = withhold"]
+    MVP --> O
+    O --> ROWS["one row per catalog outcome per dataset"]
+    ROWS --> P{"rows == catalog as sets?"}
+    P -->|no| X["fail loudly"]
+    P -->|yes| H["outcome crosswalk<br/>ICD-10 block / phecode / FinnGen published match /<br/>reviewed MVP measurement match"]
+    SAMP[("datasets.yaml: samples per dataset<br/>(participant groups), ancestry_group")] -.-> PAIRS
+    H --> PAIRS{"pairs: declared groups intersect?"}
+    PAIRS -->|yes: excluded pair, reason not_independent<br/>no verdicts, named in the report| OUT
+    PAIRS -->|no| V["replication verdict per compared pair<br/>p &lt; 0.05 / outcomes both share (readable files)<br/>different ancestry groups: sign and significance only"]
+    PAIRS -->|three datasets, none excluded| V3["three-way class with three datasets<br/>p &lt; 0.05 / outcomes all three share"]
+    V --> OUT["report.md and stdout: every pair and all three<br/>result.json, tables/, reproducibility/<br/>no source answered: exit 3"]
+    V3 --> OUT
+    V --> FIG["figures: Manhattan per dataset,<br/>replication matrix with pair strips and all three,<br/>paired effects per pair with shared outcomes"]
+    V3 --> FIG
+    CAT[("outcome catalogs<br/>+ crosswalk")] -.-> P
+    CAT -.-> H

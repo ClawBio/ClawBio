@@ -5,6 +5,11 @@ description: Semantic search across UK Biobank's 12,000+ data fields and publica
 license: MIT
 metadata:
   version: 0.1.0
+  tags:
+  - biobank
+  - genomics
+  - data-retrieval
+  - literature
   openclaw:
     requires:
       bins:

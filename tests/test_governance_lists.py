@@ -30,7 +30,7 @@ _HANDLE = re.compile(r"\[@([A-Za-z0-9-]+)\]\(https://github\.com/[A-Za-z0-9-]+\)
 
 
 def _text() -> str:
-    return MAINTAINERS.read_text()
+    return MAINTAINERS.read_text(encoding="utf-8")
 
 
 def test_maintainers_file_names_a_lead_with_orcid():
@@ -51,7 +51,7 @@ def test_every_documented_section_is_present():
 
 
 def test_codeowners_handles_are_declared_in_maintainers():
-    owners = set(re.findall(r"@([A-Za-z0-9-]+)", CODEOWNERS.read_text()))
+    owners = set(re.findall(r"@([A-Za-z0-9-]+)", CODEOWNERS.read_text(encoding="utf-8")))
     declared = set(_HANDLE.findall(_text()))
     undeclared = sorted(owners - declared)
     assert undeclared == [], f"CODEOWNERS handles absent from MAINTAINERS.md: {undeclared}"

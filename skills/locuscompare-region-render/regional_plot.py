@@ -47,11 +47,34 @@ LD_R2_BINS: list[tuple[float, float, str, str]] = [
 ]
 LEAD_COLOR = "#9B30FF"  # purple-square per LocusZoom convention
 
+# A variant with no r² to the lead (not in the LD panel, LD not computed, or not
+# among the variants LD was computed for) is drawn hollow under its own legend
+# entry. Drawing it as the grey "0.0 - 0.2" bin claimed it was measured and not
+# in LD, which it was not.
+NO_LD_LABEL = "no LD value"
+NO_LD_COLOR = "#999999"
+# Every bin label, and the draw order: no-LD first (behind), strongest LD last.
+_LD_LABELS = [label for *_, label in LD_R2_BINS] + [NO_LD_LABEL]
+_LD_DRAW_ORDER = [(NO_LD_COLOR, NO_LD_LABEL)] + [
+    (color, label) for _, _, color, label in reversed(LD_R2_BINS)
+]
+
+
+def _ld_marker_style(color: str, label: str) -> dict:
+    """Scatter kwargs for one bin: filled for a measured r², hollow for no value."""
+    if label == NO_LD_LABEL:
+        return {"facecolors": "none", "edgecolors": color, "linewidths": 0.6}
+    return {"c": color, "edgecolors": "0.4", "linewidths": 0.3}
+
+
+def _ld_legend_label(label: str) -> str:
+    return label if label == NO_LD_LABEL else f"r² {label}"
+
 
 def _r2_color(r2: float | None) -> tuple[str, str]:
-    """Return (hex_color, bin_label) for a given r² value. None -> grey."""
-    if r2 is None:
-        return LD_R2_BINS[-1][2], LD_R2_BINS[-1][3]
+    """Return (hex_color, bin_label) for a given r² value. None -> the no-LD bin."""
+    if r2 is None or math.isnan(r2):  # no measured value
+        return NO_LD_COLOR, NO_LD_LABEL
     for lo, hi, color, label in LD_R2_BINS:
         if lo <= r2 < hi:
             return color, label
@@ -110,14 +133,14 @@ class RegionalLocusCompareInput:
     # render each side's complete region (LocusZoom-style "bottom of plot fills
     # the window") instead of just the joined intersection. r² coloring still
     # comes from the LD lookup against the lead; variants not in the LD result
-    # render as grey (r²=None bin) which is correct for "not in LD with lead".
+    # render as hollow "no LD value" markers, since no r² was measured for them.
     exposure_track_variants: list[LocusVariant] = field(default_factory=list)
     outcome_track_variants: list[LocusVariant] = field(default_factory=list)
     r2_by_variant: dict[str, float] = field(default_factory=dict)
     # Front-and-center one-line panel titles. Populated by the orchestrator
     # so the plot identifies the outcome and exposure without forcing the
     # reader to parse the small caption. If empty, the renderer falls back
-    # to a generic "GWAS outcome" / "eQTL exposure".
+    # to a generic "GWAS outcome" / "<QTL tag> exposure".
     exposure_short_label: str = ""
     outcome_short_label: str = ""
     # Optional gene track: list of GeneTrackEntry. When non-empty, the
@@ -125,6 +148,9 @@ class RegionalLocusCompareInput:
     # the manhattans and the bottom-row scatters. When empty, the gene track
     # row collapses (no panel rendered).
     gene_track: list["GeneTrackEntry"] = field(default_factory=list)
+    # Where the gene track came from, printed in the caption. None prints nothing:
+    # a caller that does not know the source must not be given one.
+    gene_track_label: str | None = None
     # Optional focal-gene symbol. When set, the matching entry in `gene_track`
     # renders bold + red on the gene-track panel so the QTL gene is anchored
     # visually in 10-30-gene windows. Threaded from the orchestrator's
@@ -138,19 +164,39 @@ class RegionalLocusCompareInput:
     # study (GCST...) publishes p-values only". The panel states it instead of drawing
     # bare axes. When None and the panel is still empty, a generic reason is drawn.
     effect_size_unavailable_reason: str | None = None
+    # Short QTL tag for the exposure ("eQTL", "sQTL", "pQTL", ...), used on both
+    # scatter x-axes and in the fallback panel title. "QTL" when not stated.
+    exposure_modality_tag: str = "QTL"
+    # The variant the data window was fetched around, when it differs from the lead
+    # drawn (a lead fallback inside the credible set). The x-range and title stay on
+    # the fetched window so a gap at its edge is not misread as the source's coverage.
+    window_centre_variant_id: str | None = None
+
+
+_CAPTION_WRAP = 140  # characters per caption line
+_CAPTION_BASE_LINES = 7  # caption lines the fixed bottom margin was sized for
+_CAPTION_LINE_IN = 8 * 1.25 / 72  # one 8 pt monospace line, in inches
 
 
 def _build_caption(inp: RegionalLocusCompareInput, n_excluded_palindromic: int) -> str:
     caveats = list(inp.caveats)
     if n_excluded_palindromic:
         caveats.append(f"{n_excluded_palindromic} palindromic-ambiguous variants excluded from LD panel")
-    caveats_str = "; ".join(caveats) if caveats else "none"
+    # One caveat per line, wrapped: a caption line is as wide as its text, so an
+    # unwrapped run of sentences stretched the whole figure (7,457 px for three
+    # substitution caveats).
+    caveats_str = (
+        "\n" + "\n".join(textwrap.fill(f"- {c}", width=_CAPTION_WRAP, subsequent_indent="  ")
+                          for c in caveats)
+        if caveats else "none"
+    )
     return (
         f"LD: {inp.ld_panel_label}\n"
         f"Window: {inp.window_label}\n"
         f"Exposure: {inp.exposure_label}\n"
         f"Outcome: {inp.outcome_label}\n"
-        f"{inp.provenance_label}\n"
+        + (f"Genes: {inp.gene_track_label}\n" if inp.gene_track and inp.gene_track_label else "")
+        + f"{inp.provenance_label}\n"
         f"Caveats: {caveats_str}"
     )
 
@@ -230,7 +276,7 @@ def _stratified_downsample(
     if len(pairs) <= target_max:
         return pairs
     # Bin pairs by r² range.
-    bins: dict[str, list[HarmonisedRegionPair]] = {label: [] for *_, label in LD_R2_BINS}
+    bins: dict[str, list[HarmonisedRegionPair]] = {label: [] for label in _LD_LABELS}
     for p in pairs:
         _, label = _r2_color(p.r2_with_lead)
         bins[label].append(p)
@@ -265,7 +311,7 @@ def _render_manhattan_panel(
     orchestrator's requested window so the lead is visually centered even
     when the data tails off before the window edge.
     """
-    bins_data: dict[str, list[HarmonisedRegionPair]] = {label: [] for *_, label in LD_R2_BINS}
+    bins_data: dict[str, list[HarmonisedRegionPair]] = {label: [] for label in _LD_LABELS}
     lead_pair: HarmonisedRegionPair | None = None
     for p in pairs:
         if p.variant_id == lead_variant_id:
@@ -274,7 +320,7 @@ def _render_manhattan_panel(
         _, label = _r2_color(p.r2_with_lead)
         bins_data[label].append(p)
     # Plot in order: weakest LD first (drawn behind), strongest in front.
-    for lo, hi, color, label in reversed(LD_R2_BINS):
+    for color, label in _LD_DRAW_ORDER:
         members = bins_data.get(label, [])
         if not members:
             continue
@@ -288,9 +334,8 @@ def _render_manhattan_panel(
             ys.append(nlp)
         if xs:
             ax.scatter(
-                xs, ys, s=18.0, c=color, edgecolors="0.4",
-                linewidths=0.3, alpha=0.85,
-                label=f"r² {label}", zorder=2,
+                xs, ys, s=18.0, alpha=0.85, **_ld_marker_style(color, label),
+                label=_ld_legend_label(label), zorder=2,
             )
     if lead_pair is not None:
         p_value = lead_pair.p_exposure if use_p == "exposure" else lead_pair.p_outcome
@@ -363,7 +408,7 @@ def _render_manhattan_panel_from_locus(
 ):
     """Draw a manhattan track from a per-side LocusVariant list.
 
-    Variants not in `r2_by_variant` render as grey (r²=None bin). The lead is
+    Variants not in `r2_by_variant` render as hollow "no LD value" markers. The lead is
     located by `lead_variant_id`; if absent from the list it is not annotated
     (caller is responsible for ensuring the lead variant is present in the
     region fetch).
@@ -372,7 +417,7 @@ def _render_manhattan_panel_from_locus(
     can identify the source / study without parsing the caption. Region of
     the x-axis where the source did not test variants is shaded.
     """
-    bins_data: dict[str, list[tuple[int, float]]] = {label: [] for *_, label in LD_R2_BINS}
+    bins_data: dict[str, list[tuple[int, float]]] = {label: [] for label in _LD_LABELS}
     lead_xy: tuple[int, float] | None = None
     data_positions: list[int] = []
     for v in locus:
@@ -416,16 +461,15 @@ def _render_manhattan_panel_from_locus(
                 fontsize=6, color="0.45",
             )
 
-    for _, _, color, label in reversed(LD_R2_BINS):
+    for color, label in _LD_DRAW_ORDER:
         members = bins_data.get(label, [])
         if not members:
             continue
         ax.scatter(
             [m[0] for m in members],
             [m[1] for m in members],
-            s=18.0, c=color, edgecolors="0.4",
-            linewidths=0.3, alpha=0.85,
-            label=f"r² {label}", zorder=2,
+            s=18.0, alpha=0.85, **_ld_marker_style(color, label),
+            label=_ld_legend_label(label), zorder=2,
         )
     if lead_xy is not None:
         ax.scatter(
@@ -479,6 +523,29 @@ def _position_from_variant_id(variant_id: str | None) -> int | None:
         return int(parts[1])
     except ValueError:
         return None
+
+
+def _variant_locus_key(variant_id: str | None):
+    """Canonical ``(chrom, pos, {ref, alt})`` key for a ``chr_pos_ref_alt`` id, so
+    a variant matches its allele-FLIPPED representation (``7_100482234_A_T`` ==
+    ``7_100482234_T_A``). Returns None for a malformed id."""
+    if not variant_id:
+        return None
+    parts = variant_id.split("_")
+    if len(parts) < 4:
+        return None
+    chrom, pos, ref, alt = parts[0], parts[1], parts[2], parts[3]
+    return (chrom.lstrip("chr"), pos, frozenset({ref.upper(), alt.upper()}))
+
+
+def _matches_lead(variant_id: str | None, lead_variant_id: str | None) -> bool:
+    """True when ``variant_id`` is the lead, ALLELE-ORIENTATION-robust: a source can
+    write the alleles in the opposite order from the lead id. Falls back to
+    exact-string equality when either id is not a parseable ``chr_pos_ref_alt``."""
+    if variant_id == lead_variant_id:
+        return True
+    k = _variant_locus_key(variant_id)
+    return k is not None and k == _variant_locus_key(lead_variant_id)
 
 
 def _lead_position(pairs, lead_variant_id: str | None) -> int | None:
@@ -650,9 +717,15 @@ def render_gene_track(
         ax.tick_params(axis="x", labelbottom=False)
 
 
-def _render_locuscompare_scatter(ax, pairs: list[HarmonisedRegionPair], lead_variant_id: str):
-    """-log10(p_eQTL) vs -log10(p_GWAS) colored by r²."""
-    bins_data: dict[str, list[HarmonisedRegionPair]] = {label: [] for *_, label in LD_R2_BINS}
+def _render_locuscompare_scatter(
+    ax,
+    pairs: list[HarmonisedRegionPair],
+    lead_variant_id: str,
+    *,
+    exposure_modality_tag: str = "QTL",
+):
+    """-log10(p_exposure QTL) vs -log10(p_GWAS) colored by r²."""
+    bins_data: dict[str, list[HarmonisedRegionPair]] = {label: [] for label in _LD_LABELS}
     lead_pair: HarmonisedRegionPair | None = None
     for p in pairs:
         if p.variant_id == lead_variant_id:
@@ -660,7 +733,7 @@ def _render_locuscompare_scatter(ax, pairs: list[HarmonisedRegionPair], lead_var
             continue
         _, label = _r2_color(p.r2_with_lead)
         bins_data[label].append(p)
-    for _, _, color, label in reversed(LD_R2_BINS):
+    for color, label in _LD_DRAW_ORDER:
         members = bins_data.get(label, [])
         xs, ys = [], []
         for m in members:
@@ -671,8 +744,8 @@ def _render_locuscompare_scatter(ax, pairs: list[HarmonisedRegionPair], lead_var
             xs.append(x)
             ys.append(y)
         if xs:
-            ax.scatter(xs, ys, s=18.0, c=color, edgecolors="0.4",
-                       linewidths=0.3, alpha=0.85, zorder=2)
+            ax.scatter(xs, ys, s=18.0, alpha=0.85, **_ld_marker_style(color, label),
+                       zorder=2)
     if lead_pair is not None:
         lx = _safe_neg_log10(lead_pair.p_exposure)
         ly = _safe_neg_log10(lead_pair.p_outcome)
@@ -695,7 +768,7 @@ def _render_locuscompare_scatter(ax, pairs: list[HarmonisedRegionPair], lead_var
         ax.plot([lo - pad, hi + pad], [lo - pad, hi + pad],
                 color="0.5", linestyle=":", linewidth=0.9, zorder=1,
                 label="identity (y = x)")
-    ax.set_xlabel("−log10 p (eQTL / exposure)", fontsize=9)
+    ax.set_xlabel(f"−log10 p ({exposure_modality_tag} / exposure)", fontsize=9)
     ax.set_ylabel("−log10 p (GWAS / outcome)", fontsize=9)
     ax.set_title(
         "LocusCompare panel: clean diagonal supports H4; two clusters supports H3",
@@ -718,6 +791,7 @@ def _render_effect_size_scatter(
     *,
     outcome_scale_label: str | None = None,
     unavailable_reason: str | None = None,
+    exposure_modality_tag: str = "QTL",
 ) -> int:
     """β_eQTL vs β_GWAS colored by r². Optional Wald-ratio slope through origin.
 
@@ -726,7 +800,7 @@ def _render_effect_size_scatter(
     `outcome_scale_label` names the outcome axis scale when known (e.g. log odds
     ratio derived from the reported odds ratio).
     """
-    bins_data: dict[str, list[HarmonisedRegionPair]] = {label: [] for *_, label in LD_R2_BINS}
+    bins_data: dict[str, list[HarmonisedRegionPair]] = {label: [] for label in _LD_LABELS}
     lead_pair: HarmonisedRegionPair | None = None
     for p in pairs:
         if p.variant_id == lead_variant_id:
@@ -737,7 +811,7 @@ def _render_effect_size_scatter(
     n_drawn = 0
     ax.axhline(0, color="0.85", linewidth=0.8, zorder=0)
     ax.axvline(0, color="0.85", linewidth=0.8, zorder=0)
-    for _, _, color, label in reversed(LD_R2_BINS):
+    for color, label in _LD_DRAW_ORDER:
         members = bins_data.get(label, [])
         xs, ys = [], []
         for m in members:
@@ -747,8 +821,8 @@ def _render_effect_size_scatter(
             ys.append(m.beta_outcome)
         if xs:
             n_drawn += len(xs)
-            ax.scatter(xs, ys, s=18.0, c=color, edgecolors="0.4",
-                       linewidths=0.3, alpha=0.85, zorder=2)
+            ax.scatter(xs, ys, s=18.0, alpha=0.85, **_ld_marker_style(color, label),
+                       zorder=2)
     if lead_pair is not None and lead_pair.beta_exposure is not None and lead_pair.beta_outcome is not None:
         n_drawn += 1
         ax.scatter([lead_pair.beta_exposure], [lead_pair.beta_outcome],
@@ -768,7 +842,7 @@ def _render_effect_size_scatter(
                 ax.plot(line_xs, [wr * x for x in line_xs],
                         color="black", linestyle="--", linewidth=0.9,
                         zorder=1, label=f"WR slope (lead) = {wr:+.3g}")
-    ax.set_xlabel("β (eQTL / exposure)", fontsize=9)
+    ax.set_xlabel(f"β ({exposure_modality_tag} / exposure)", fontsize=9)
     if outcome_scale_label:
         ax.set_ylabel(f"{outcome_scale_label}\n(GWAS / outcome)", fontsize=8)
     else:
@@ -823,7 +897,8 @@ def render_full_locuscompare(
     # Compute window-centered xlim from the lead position so matplotlib does
     # not auto-snap to the data's actual extent.
     lead_pos = _lead_position(inp.pairs, inp.lead_variant_id)
-    xlim_bp = _compute_xlim_bp(inp.pairs, inp.lead_variant_id, inp.window_bp)
+    xlim_bp = _compute_xlim_bp(
+        inp.pairs, inp.window_centre_variant_id or inp.lead_variant_id, inp.window_bp)
 
     has_gene_track = bool(inp.gene_track)
     if has_gene_track:
@@ -838,7 +913,12 @@ def render_full_locuscompare(
         top_heights = [2.4, 2.4]
 
     bottom_height = 4.6  # square-ish scatter row
-    fig_height = sum(top_heights) + bottom_height + 1.4  # title + caption padding
+    # The caption sits under the scatter row. The fixed 1.4 in of padding fits a
+    # caption of up to _CAPTION_BASE_LINES lines; each wrapped caveat line beyond that
+    # grows the figure, so the caption never runs into the scatter panels.
+    caption = _build_caption(inp, n_palindromic_excluded)
+    extra_caption_in = max(0, caption.count("\n") + 1 - _CAPTION_BASE_LINES) * _CAPTION_LINE_IN
+    fig_height = sum(top_heights) + bottom_height + 1.4 + extra_caption_in
     fig = plt.figure(figsize=(13.0, fig_height))
 
     # Nested gridspec: outer 2-row split (top stack vs scatter row) with a
@@ -871,7 +951,7 @@ def render_full_locuscompare(
     ax_es = fig.add_subplot(inner_bottom[1])
 
     outcome_panel_title = inp.outcome_short_label or "GWAS outcome"
-    exposure_panel_title = inp.exposure_short_label or "eQTL exposure"
+    exposure_panel_title = inp.exposure_short_label or f"{inp.exposure_modality_tag} exposure"
     # Per-side full region beats joined-intersection for the LocusZoom
     # convention "bottom of plot fills the window". Falls back to joined
     # pairs when the orchestrator doesn't pass per-side extras.
@@ -924,7 +1004,9 @@ def render_full_locuscompare(
             ax_genes, inp.gene_track,
             xlim_bp=xlim_bp,
             lead_position=lead_pos,
-            track_label="Genes (GENCODE v39 protein_coding)",
+            # Short so it does not run into the exposure panel; the source is
+            # named in the caption's Genes line instead.
+            track_label="Genes",
             show_xticklabels=True,
             focal_gene_symbol=inp.focal_gene_symbol or None,
         )
@@ -937,24 +1019,33 @@ def render_full_locuscompare(
             f"genomic position, Mb (chromosome {chrom})" if chrom else "genomic position (Mb)",
             fontsize=9,
         )
-    _render_locuscompare_scatter(ax_lc, pairs, inp.lead_variant_id)
+    _render_locuscompare_scatter(
+        ax_lc, pairs, inp.lead_variant_id,
+        exposure_modality_tag=inp.exposure_modality_tag,
+    )
     _render_effect_size_scatter(
         ax_es, pairs, inp.lead_variant_id,
         outcome_scale_label=inp.outcome_effect_scale_label,
         unavailable_reason=inp.effect_size_unavailable_reason,
+        exposure_modality_tag=inp.exposure_modality_tag,
     )
 
     title = inp.title or (
         f"Regional LocusCompare: {len(inp.pairs)} variants joined "
-        f"(±{inp.window_bp // 2000} kb of {inp.lead_variant_id})"
+        f"(±{inp.window_bp // 2000} kb of {inp.window_centre_variant_id or inp.lead_variant_id}"
+        + (f"; lead shown {inp.lead_variant_id}" if inp.window_centre_variant_id
+           and inp.window_centre_variant_id != inp.lead_variant_id else "")
+        + ")"
     )
     fig.suptitle(title, fontsize=11)
-    caption = _build_caption(inp, n_palindromic_excluded)
     fig.text(
         0.5, 0.005, caption, ha="center", va="bottom",
         fontsize=8, family="monospace",
     )
-    fig.subplots_adjust(top=0.94, bottom=0.13)
+    fig.subplots_adjust(
+        top=0.94,
+        bottom=(0.13 * (fig_height - extra_caption_in) + extra_caption_in) / fig_height,
+    )
     fig.savefig(out_path, dpi=160, bbox_inches="tight")
     plt.close(fig)
     return out_path

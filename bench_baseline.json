@@ -2,7 +2,7 @@
   "_comment": [
     "Per-harness pass rates recorded from a real CI run. The scientific-audit",
     "job fails if any harness drops below its rate here (see #342).",
-    "These are NOT targets. Seven harnesses are below 100% and that debt is",
+    "These are NOT targets. Six harnesses are below 100% and that debt is",
     "tracked in #106. Raising a number is a reviewable commit; lowering one",
     "should be treated as a bug report, not routine maintenance.",
     "",
@@ -32,7 +32,20 @@
     "are unchanged. This records stale fixture expectations, not a rollback",
     "of the expanded panel or its incomplete-coverage guard.",
     "Restore at least 95.5 when CI pins an upstream revision with corrected",
-    "DPYD controls/expectations and a smoke run confirms the recovered passes."
+    "DPYD controls/expectations and a smoke run confirms the recovered passes.",
+    "",
+    "nutrigx-advisor 0.0 does not measure the skill. The pinned harness runs",
+    "skills/nutrigx_advisor/nutrigx_advisor.py, a path that left the repository",
+    "when the skill was renamed to skills/nutrigx/ in 2725981 (11 Jun 2026;",
+    "fdd781e had added it as a compat symlink for the bench). The interpreter",
+    "stops with \"can't open file\" before any skill code runs. That message is",
+    "not a traceback, so the harness does not class the exit as a harness",
+    "error: all ten cases are scored on the rubric and carry scientific-looking",
+    "verdicts (score_incorrect, threshold_mismatch, snp_invalid, repro_broken)",
+    "while harness_errors stays 0. A gate at 0.0 cannot regress, so the skill",
+    "has had no bench coverage since the rename. Re-record from a smoke run",
+    "once CI pins a bench revision that resolves the skill path",
+    "(biostochastics/clawbio_bench#187)."
   ],
   "recorded_from": {
     "clawbio_commit": "056826d",
@@ -59,6 +72,16 @@
         "dpyd_2a_het",
         "dpyd_neg"
       ]
+    },
+    "gwas-prs_rerecorded": {
+      "pr": 773,
+      "date": "2026-11-11",
+      "clawbio_commit": "d704e00",
+      "benchmark_suite_version": "0.1.5",
+      "benchmark_revision": "49a0f11a8393b87a90f0721261a9bec5d52b61db",
+      "mode": "smoke",
+      "run_url": "https://github.com/ClawBio/ClawBio/actions/runs/43043560118",
+      "result": "8/8 pass (100.0%), 0 harness errors"
     }
   },
   "harnesses": {
@@ -69,7 +92,7 @@
     "cvr-acmg-correctness": 69.2,
     "cvr-variant-identity": 100.0,
     "equity-scorer": 100.0,
-    "gwas-prs": 62.5,
+    "gwas-prs": 100.0,
     "nutrigx-advisor": 0.0,
     "pharmgx-reporter": 90.9
   },

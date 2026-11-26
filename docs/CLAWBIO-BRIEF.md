@@ -33,20 +33,17 @@ ClawBio addresses this by combining local execution, versioned skill specificati
 
 ## Current Project State
 
-As documented in `README.md`, ClawBio is currently presented as:
+Figures change with every release, so this brief points to where they live
+rather than copying them:
 
-- **v0.5.0** of the project
-- **78 skills** in the broader platform framing
-- **8,000+ Galaxy tools**
-- **2,318 tests + benchmark validation**
-- a local-first bioinformatics stack with privacy and reproducibility as core constraints
+- **Version**: `__version__` in `clawbio/__init__.py`, and the current release
+  in `README.md` and `CHANGELOG.md`
+- **Skill count**: `skill_count` in `skills/catalog.json`
+- **Galaxy tools, tests, benchmark results**: the headline in `README.md` and the
+  live leaderboard at [clawbio.ai/benchmarks.html](https://clawbio.ai/benchmarks.html)
 
-The current public skills table in `README.md` lists **78 named skills**, comprising:
-
-- **28 MVP skills**
-- **50 planned skills**
-
-This is a substantial expansion from the older brief, which described the project as having 7 production skills and 6 planned skills.
+Throughout, ClawBio is a local-first bioinformatics stack with privacy and
+reproducibility as core constraints.
 
 ## How ClawBio Works
 

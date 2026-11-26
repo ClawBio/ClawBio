@@ -26,7 +26,8 @@ class ReproPath:
     anchor controls how the path is rendered in commands.sh:
       "repo_root"  → $CLAWBIO_ROOT/<path relative to repo root>
       "output_dir" → $OUTPUT_DIR/<path relative to output dir>
-      "auto"       → absolute path (for user-supplied inputs outside the repo)
+      "auto"       → $CLAWBIO_ROOT/<rel> when inside the repo, else the
+                     absolute path (for user-supplied inputs outside the repo)
     """
 
     path: Path
@@ -63,6 +64,32 @@ def _make_executable(path: Path) -> None:
     path.chmod(mode | ((mode & 0o444) >> 2))
 
 
+# Shell lines that set CLAWBIO_ROOT at replay time. The bundle is shared, so the
+# generating machine's checkout path is never written into it: an explicit
+# CLAWBIO_ROOT wins, else the nearest folder holding skills/ above the bundle,
+# else above the directory the script is run from.
+# CLAWBIO_ROOT_SEARCH leaves CLAWBIO_ROOT empty when nothing is found, for a
+# script with its own fallback; CLAWBIO_ROOT_LOCATOR also exits with a hint.
+CLAWBIO_ROOT_SEARCH = [
+    'if [ -z "${CLAWBIO_ROOT:-}" ]; then',
+    '  for _start in "$SCRIPT_DIR" "$PWD"; do',
+    '    _dir="$_start"',
+    '    while [ "$_dir" != "/" ] && [ ! -d "$_dir/skills" ]; do _dir="$(dirname "$_dir")"; done',
+    '    if [ -d "$_dir/skills" ]; then CLAWBIO_ROOT="$_dir"; break; fi',
+    "  done",
+    "fi",
+    'CLAWBIO_ROOT="${CLAWBIO_ROOT:-}"',
+]
+CLAWBIO_ROOT_LOCATOR = [
+    *CLAWBIO_ROOT_SEARCH,
+    'if [ ! -d "$CLAWBIO_ROOT/skills" ]; then',
+    '  echo "Cannot find the ClawBio checkout (CLAWBIO_ROOT=${CLAWBIO_ROOT:-unset})." >&2',
+    '  echo "Run this from inside a ClawBio clone, or set CLAWBIO_ROOT=/path/to/ClawBio." >&2',
+    "  exit 1",
+    "fi",
+]
+
+
 def write_portable_commands_sh(
     output_dir: Path | str,
     command: ReproCommand,
@@ -71,25 +98,25 @@ def write_portable_commands_sh(
 ) -> Path:
     """Write reproducibility/commands.sh with portable path references.
 
-    The script sets CLAWBIO_ROOT (defaulting to the repo root at bundle
-    generation time) and OUTPUT_DIR (auto-detected from the script location),
-    then renders ReproPath arguments as shell variable expansions so the bundle
-    can be replayed on any machine that has the repo checked out.
+    The script finds CLAWBIO_ROOT at replay time (CLAWBIO_ROOT_LOCATOR) and
+    OUTPUT_DIR from its own location, then renders ReproPath arguments as shell
+    variable expansions so the bundle can be replayed on any machine that has
+    the repo checked out. The checkout path of the generating machine is never
+    written. ``repo_root`` is only used to make paths inside it relative.
     """
     output_dir = Path(output_dir)
     repro_dir = output_dir / "reproducibility"
     repro_dir.mkdir(parents=True, exist_ok=True)
 
     repo_root_resolved = Path(repo_root).resolve() if repo_root else None
-    default_root = str(repo_root_resolved) if repo_root_resolved else "/path/to/ClawBio"
 
     def render_arg(arg: str | ReproPath) -> str:
         if not isinstance(arg, ReproPath):
             return arg
         p = arg.path
-        if arg.anchor == "repo_root" and repo_root_resolved is not None:
+        if arg.anchor in ("repo_root", "auto") and repo_root_resolved is not None:
             try:
-                rel = p.relative_to(repo_root_resolved)
+                rel = p.resolve().relative_to(repo_root_resolved)
                 return f'"$CLAWBIO_ROOT/{rel}"'
             except ValueError:
                 pass
@@ -119,11 +146,7 @@ def write_portable_commands_sh(
         "set -euo pipefail",
         'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"',
         'OUTPUT_DIR="$(dirname "$SCRIPT_DIR")"',
-        f': "${{CLAWBIO_ROOT:={default_root}}}"',
-        'if [ ! -d "$CLAWBIO_ROOT" ]; then',
-        '  echo "Invalid CLAWBIO_ROOT: $CLAWBIO_ROOT" >&2',
-        "  exit 1",
-        "fi",
+        *CLAWBIO_ROOT_LOCATOR,
         "",
     ]
     if command.preflight:
@@ -182,7 +205,7 @@ def write_environment_yml(
     env_name: str,
     pip_deps: list[str],
     conda_deps: list[str] | None = None,
-    python_version: str = "3.11",
+    python_version: str = "3.12",
     channels: list[str] | None = None,
 ) -> Path:
     """Write reproducibility/environment.yml for a ClawBio skill.
@@ -193,7 +216,7 @@ def write_environment_yml(
         pip_deps:       Packages to install via pip (e.g. ['cellpose>=4.0']).
         conda_deps:     Extra conda packages beyond python (e.g. ['numpy', 'scipy']).
                         Do not include 'python=X.Y' here — use python_version instead.
-        python_version: Python version string (default '3.11', the floor in
+        python_version: Python version string (default '3.12', the floor in
                         pyproject.toml's requires-python).
         channels:       Conda channels in priority order (default ['conda-forge']).
                         Pass e.g. ['conda-forge', 'bioconda'] when a conda_dep

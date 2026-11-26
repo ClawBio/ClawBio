@@ -11,9 +11,12 @@ from __future__ import annotations
 
 import math
 import tempfile
+import tracemalloc
+from itertools import combinations
 from pathlib import Path
 
 import pytest
+from hypothesis import given, strategies as st
 import sys
 
 # Make the skill importable without installation
@@ -2477,6 +2480,42 @@ class TestComputeMK:
 
 
 class TestComputeKaKs:
+    def test_distinct_sequences_memory(self):
+        seqs = [
+            ''.join('GGC' if i & (1 << bit) else 'GGT' for bit in range(8))
+            for i in range(256)
+        ]
+        tracemalloc.start()
+        try:
+            result = dn.compute_ka_ks(seqs)
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
+        assert result.n_codons == 8
+        # Leave room for pair indices and differences, but not cached totals
+        # for all 32,640 pairs, which cannot be reused for distinct sequences.
+        assert peak < 6 * 1024 * 1024
+
+    @given(
+        st.lists(st.text(alphabet='TC', min_size=4, max_size=4), min_size=2, max_size=8),
+        st.booleans(),
+    )
+    def test_synonymous_pair_means(self, endings, use_outgroup):
+        seqs = [''.join('GG' + base for base in row) for row in endings]
+        outgroup = seqs.pop() if use_outgroup else None
+        pairs = (
+            [(row, endings[-1]) for row in endings[:-1]]
+            if use_outgroup else list(combinations(endings, 2))
+        )
+        expected_sd = sum(
+            sum(a != b for a, b in zip(left, right)) for left, right in pairs
+        ) / len(pairs)
+        result = dn.compute_ka_ks(seqs, outgroup=outgroup)
+        assert result.Sd == expected_sd
+        assert result.Nd == 0.0
+        assert result.S_sites == 4.0
+        assert result.N_sites == 8.0
+
     def test_returns_kaks_stats_type(self):
         result = dn.compute_ka_ks(['ATGATG', 'ATGATG'])
         assert isinstance(result, dn.KaKsStats)

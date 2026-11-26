@@ -1,0 +1,9 @@
+# The golden query. The data it reads are the bundled demo slices (skills/snp-phewas/demo/:
+# pan_ukbb/*, finngen/*) and the trimmed FinnGen API payload
+# demo/finngen/api_variant_1-109274968-G-T.json.
+variant: rs12740374
+variant_id_grch38: 1_109274968_G_T
+datasets: [pan_ukbb_eur, finngen_r12]
+outcomes:
+  pan_ukbb_eur: [biomarkers-30780-both_sexes-irnt, icd10-E78-both_sexes, phecode-411-both_sexes]
+  finngen_r12: [I9_CHD, E4_LIPOPROT, I9_IHD]

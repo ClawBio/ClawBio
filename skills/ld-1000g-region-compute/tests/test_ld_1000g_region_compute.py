@@ -16,6 +16,7 @@ import pytest
 from ondemand_client import (
     OnDemand1000GLDClient,
     OnDemandLDError,
+    _alpha_plink_id,
     _parse_ld,
 )
 import ondemand_client as oc_module
@@ -203,3 +204,131 @@ def test_parse_ld_skips_rows_without_lead_match(tmp_path):
     assert pairs[0].partner_variant_id == "2:z:A:G"
     assert pairs[0].r2 == pytest.approx(0.7)
 
+
+def test_alpha_plink_id_sorts_alleles_alphabetically():
+    """plink 1.9's --set-missing-var-ids '@:#:$1:$2' uses alphabetical-order
+    alleles. Confirm `_alpha_plink_id` matches that convention so callers
+    can pass OT-form ids in either allele order and still find the variant.
+    """
+    # ALT < REF alphabetically: must swap.
+    assert _alpha_plink_id("1_109330668_G_A") == "1:109330668:A:G"
+    assert _alpha_plink_id("1_109462434_T_A") == "1:109462434:A:T"
+    # REF < ALT alphabetically: no swap (identity transformation modulo separator).
+    assert _alpha_plink_id("1_109274968_G_T") == "1:109274968:G:T"
+    assert _alpha_plink_id("2_36932656_A_G") == "2:36932656:A:G"
+    # Same allele on both sides (degenerate; plink would never emit this
+    # but the helper must not crash).
+    assert _alpha_plink_id("1_100_A_A") == "1:100:A:A"
+    # Unparseable input -> naive `:`-swap fallback, never raise.
+    assert _alpha_plink_id("not_a_variant") == "not:a:variant"
+
+
+def test_r2_with_lead_maps_alpha_form_back_to_ot_form(monkeypatch, tmp_path):
+    """End-to-end mock: pass partners in OT-form where ALT < REF, confirm
+    the client writes alphabetical-allele ids into `--extract`/`--ld-snp`
+    and maps results back to the caller's OT-form.
+    """
+    _patch_plink_version(monkeypatch)
+    _patch_samples(monkeypatch)
+    _patch_region_fetch(monkeypatch, tmp_path)
+
+    captured_cmd: dict = {}
+    captured_extract: dict = {}
+
+    def fake_run(cmd, capture_output, text, check, timeout):
+        captured_cmd["cmd"] = cmd
+        # Capture the extract list plink saw.
+        extract_path = Path(cmd[cmd.index("--extract") + 1])
+        captured_extract["lines"] = extract_path.read_text().splitlines()
+        out_prefix = Path(cmd[cmd.index("--out") + 1])
+        # plink emits SNP_A / SNP_B in its internal alphabetical-allele form.
+        _write_ld(out_prefix, lead="1:109274968:G:T", partner_pairs=[
+            # Partner the caller passed as "1_109330668_G_A"; plink sees "1:109330668:A:G".
+            ("1:109330668:A:G", 0.85),
+            # Partner the caller passed as "1_109462434_T_A"; plink sees "1:109462434:A:T".
+            ("1:109462434:A:T", 0.40),
+        ])
+        return MagicMock(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+    client = OnDemand1000GLDClient(super_pop="EUR", plink_bin="plink", cache_dir=tmp_path)
+    result = client.r2_with_lead(
+        lead="1_109274968_G_T",
+        partners=["1_109330668_G_A", "1_109462434_T_A"],
+        chromosome="1",
+        window_bp=1_000_000,
+    )
+
+    # --extract / --ld-snp must use plink's alphabetical-allele form.
+    assert captured_extract["lines"] == [
+        "1:109274968:G:T", "1:109330668:A:G", "1:109462434:A:T",
+    ]
+    assert "1:109274968:G:T" == captured_cmd["cmd"][captured_cmd["cmd"].index("--ld-snp") + 1]
+
+    # Returned partner ids must be the caller's OT-form (not plink's alpha-form).
+    returned_ids = sorted(p.partner_variant_id for p in result.pairs)
+    assert returned_ids == ["1_109330668_G_A", "1_109462434_T_A"]
+
+
+def test_r2_with_lead_returns_empty_pairs_when_lead_not_in_panel(monkeypatch, tmp_path):
+    """plink errors with 'No valid variants specified by --ld-snp' when the
+    lead variant is not in the 1000G panel (rare, indel, post-1000G). The
+    client must degrade gracefully (empty pairs + explanatory note),
+    NOT raise, so a regional plot renders without LD colouring instead of
+    failing.
+    """
+    _patch_plink_version(monkeypatch)
+    _patch_samples(monkeypatch)
+    _patch_region_fetch(monkeypatch, tmp_path)
+
+    def fake_run(cmd, capture_output, text, check, timeout):
+        return MagicMock(
+            returncode=5, stdout="",
+            stderr="Error: No valid variants specified by --ld-snp/--ld-snps/--ld-snp-list.",
+        )
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+    client = OnDemand1000GLDClient(super_pop="EUR", plink_bin="plink", cache_dir=tmp_path)
+    result = client.r2_with_lead(
+        lead="1_999999_X_Y",
+        partners=["1_999998_A_G", "1_999997_C_T"],
+        chromosome="1",
+        window_bp=1_000_000,
+    )
+
+    assert result.pairs == []
+    assert result.n_partners_returned == 0
+    assert result.n_partners_requested == 2
+    assert any("not in 1000G" in n for n in result.notes)
+
+
+def test_r2_with_lead_finds_a_lead_whose_alt_sorts_before_its_ref(monkeypatch, tmp_path):
+    """A lead with REF=G, ALT=A is `1:67240275:A:G` in plink 1.9's id space, so the
+    client must ask for that id. Asking for `1:67240275:G:A` makes plink fail with
+    "No valid variants specified by --ld-snp" for every lead in that orientation
+    (12,991 of the 27,603 rows in the 1 Mb window around rs11209026 at IL23R)."""
+    _patch_plink_version(monkeypatch)
+    _patch_samples(monkeypatch)
+    _patch_region_fetch(monkeypatch, tmp_path)
+
+    seen: dict = {}
+
+    def fake_run(cmd, capture_output, text, check, timeout):
+        seen["ld_snp"] = cmd[cmd.index("--ld-snp") + 1]
+        seen["extract"] = Path(cmd[cmd.index("--extract") + 1]).read_text().splitlines()
+        out_prefix = Path(cmd[cmd.index("--out") + 1])
+        _write_ld(out_prefix, lead="1:67240275:A:G", partner_pairs=[("1:67242007:A:G", 0.9)])
+        return MagicMock(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+    client = OnDemand1000GLDClient(super_pop="EUR", plink_bin="plink", cache_dir=tmp_path)
+    result = client.r2_with_lead(
+        lead="1_67240275_G_A",
+        partners=["1_67242007_G_A"],
+        chromosome="1",
+        window_bp=1_000_000,
+    )
+
+    assert seen["ld_snp"] == "1:67240275:A:G"
+    assert seen["extract"][0] == "1:67240275:A:G"
+    assert [(p.partner_variant_id, p.r2) for p in result.pairs] == [("1_67242007_G_A", 0.9)]

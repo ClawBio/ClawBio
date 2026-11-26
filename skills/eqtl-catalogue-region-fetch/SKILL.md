@@ -119,6 +119,22 @@ When an agent asks for a regional cis-QTL slice from eQTL Catalogue:
 3. **Tabix range fetch**: the skill performs a single byte-range request against the dataset's per-variant file on the EBI FTP (`<QTD>.all.tsv.gz` or `<QTD>.cc.tsv.gz`, whichever the catalogue's dataset table lists for it, as recorded in the bundled table). No REST endpoint is used (see Gotchas #1 and #6).
 4. **Filter by `molecular_trait_id`** (recommended for `ge` datasets): the harmonised `.all.tsv.gz` for `ge` quant_method bundles every gene's variants together. Pass the target ENSG to filter; without it you get every gene's rows in the window.
 5. **Write outputs** to `--output <dir>/`: a flat `variants.tsv` (effect-allele-aligned, GRCh38, ALT-effect β), a `manifest.yaml` with provenance (`study_label`, `tissue_label`, `quant_method` + human-readable label, `n_variants`, source URL, fetched-at UTC timestamp, `n_rows_read`, `n_collapsed_duplicate_rsid_rows`), a `report.md` human-readable summary, and, when the catalogue repeated a variant once per rsID, a `collapsed_rows.tsv` with one line per dropped copy (see Gotcha 8).
+6. **Write the reproducibility bundle** to `<output>/reproducibility/` with `clawbio.common.reproducibility`; `checksums.sha256` is written last and covers this run's outputs. A failed fetch (Gotchas 7 and 8) writes no bundle.
+
+## Output Structure
+
+```
+<output_dir>/
+├── variants.tsv            # one row per variant, GRCh38, ALT-effect β
+├── collapsed_rows.tsv      # only when duplicate rsID rows were collapsed
+├── manifest.yaml           # provenance (manifest.json if PyYAML is missing)
+├── report.md               # human-readable summary
+└── reproducibility/
+    ├── commands.sh         # replays this run (portable: $CLAWBIO_ROOT / $OUTPUT_DIR)
+    ├── environment.yml     # conda environment
+    └── checksums.sha256    # sha256 of the files above; verify with
+                            # cd <output_dir> && sha256sum -c reproducibility/checksums.sha256
+```
 
 ## CLI Reference
 

@@ -25,7 +25,7 @@ class TestGroundTruth:
 
     @pytest.fixture(autouse=True)
     def load_gt(self):
-        with open(GROUND_TRUTH) as f:
+        with open(GROUND_TRUTH, encoding="utf-8") as f:
             self.gt = json.load(f)
 
     def test_ground_truth_exists(self):
@@ -124,9 +124,17 @@ class TestMockAPIServer:
 
     @pytest.fixture(autouse=True)
     def server(self):
-        with MockAPIServer(port=18089) as srv:
+        # Port 0: the OS picks a free port, so concurrent test runs never collide.
+        with MockAPIServer(port=0) as srv:
             self.base = srv.base_url
             yield
+
+    def test_two_servers_on_port_zero_run_side_by_side(self):
+        with MockAPIServer(port=0) as a, MockAPIServer(port=0) as b:
+            assert a.port != 0 and b.port != 0 and a.port != b.port
+            for srv in (a, b):
+                with urllib.request.urlopen(f"{srv.base_url}/health") as resp:
+                    assert json.loads(resp.read())["status"] == "ok"
 
     def _get(self, path: str) -> dict:
         url = f"{self.base}{path}"

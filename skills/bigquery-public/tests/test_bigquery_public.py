@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from clawbio.common import demo_runner
+
 import hashlib
-import importlib.util
 import json
 import subprocess
 import sys
@@ -19,11 +20,6 @@ import bigquery_public as skill  # noqa: E402
 
 
 from clawbio import cli as clawbio_runner  # noqa: E402
-
-_CATALOG_SPEC = importlib.util.spec_from_file_location("generate_catalog_module", PROJECT_ROOT / "scripts" / "generate_catalog.py")
-assert _CATALOG_SPEC and _CATALOG_SPEC.loader
-generate_catalog = importlib.util.module_from_spec(_CATALOG_SPEC)
-_CATALOG_SPEC.loader.exec_module(generate_catalog)
 
 
 def test_validate_read_only_sql_accepts_select_and_with():
@@ -79,21 +75,6 @@ def test_parse_scalar_param_invalid_format_and_type():
         skill.parse_scalar_param("gene=ARRAY:TP53")
     with pytest.raises(ValueError, match="must not contain newlines or NUL bytes"):
         skill.parse_scalar_param("gene=STRING:TP53\nBRCA1")
-
-
-def test_generate_catalog_parser_folds_block_scalar_description():
-    payload = """---
-name: demo
-description: >-
-  First line
-  second line
-tags: [one, two]
----
-body
-"""
-    parsed = generate_catalog.parse_yaml_frontmatter(payload)
-    assert parsed["description"] == "First line second line"
-    assert parsed["tags"] == ["one", "two"]
 
 
 def test_ensure_output_dir_ready_rejects_non_empty_dir(tmp_path: Path):
@@ -634,3 +615,10 @@ def test_cli_subprocess_demo_round_trip(tmp_path: Path):
     )
     assert proc.returncode == 0, proc.stderr
     assert (output_dir / "report.md").exists()
+
+
+def test_demo_outputs_do_not_record_the_checkout_path(tmp_path):
+    """Reports are shared; an absolute path leaks the user's name and folder layout."""
+    outputs = demo_runner.demo_outputs("bigquery-public", tmp_path)
+    leaks = [name for name, text in outputs.items() if str(demo_runner.PROJECT_ROOT) in text]
+    assert leaks == []

@@ -15,6 +15,9 @@ from hypothesis import HealthCheck, example, given, settings, strategies as st
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+from inline_snapshot import snapshot
+
+from clawbio.common import demo_runner
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 import vcf_annotator as annotator
@@ -489,3 +492,228 @@ def test_optional_reader_is_closed(sample_vcf, monkeypatch, fails):
     else:
         assert parse_vcf(sample_vcf) == [dict(chrom="1", pos="1", id="", ref="AT", alt="A")]
     reader.close.assert_called_once()
+
+
+# ── Demo output snapshot ──────────────────────────────────────────────────────
+# Fails when a code change alters any demo number. If the change is intended,
+# run `pytest skills/vcf-annotator/tests --inline-snapshot=fix`; it rewrites the
+# snapshot() values below, and the PR diff shows which numbers moved.
+
+@pytest.mark.demo_snapshot
+def test_demo_output_matches_snapshot(tmp_path):
+    assert demo_runner.demo_outputs("vcf-annotator", tmp_path) == snapshot({'report.md': """\
+# 🦖 ClawBio VCF Annotator Report
+
+**Input**: demo_variants.vcf  \n\
+**Date**: <TIMESTAMP> UTC  \n\
+**Total variants**: 5  \n\
+**HIGH impact**: 2 | **MODERATE**: 3 | **LOW**: 0<br>
+**ClinVar Pathogenic/Likely Pathogenic**: 3
+
+---
+
+## Summary
+
+Annotated 5 variants against Ensembl VEP, ClinVar, and gnomAD. 2 variant(s) carry HIGH impact consequences. 3 variant(s) are classified as Pathogenic or Likely Pathogenic in ClinVar. Variants are ranked by predicted functional impact below.
+
+---
+
+## Variant Table
+
+| # | Gene | Variant | Consequence | Impact | ClinVar | gnomAD AF |
+|---|------|---------|-------------|--------|---------|-----------|
+| 1 | BRCA2 | 13:32316461 C>T | stop_gained | **HIGH** | Pathogenic | 0.000004 |
+| 2 | CFTR | 7:117548628 CTTT>C | frameshift_variant | **HIGH** | Pathogenic | 0.021000 |
+| 3 | BRCA1 | 17:43063931 G>A | missense_variant | **MODERATE** | Pathogenic | 0.000024 |
+| 4 | APOE | 19:44908684 T>C | missense_variant | **MODERATE** | Risk factor | 0.147000 |
+| 5 | MTHFR | 1:11796321 G>A | missense_variant | **MODERATE** | Benign/Likely benign | 0.312000 |
+
+---
+
+## Detailed Annotations
+
+### 1. BRCA2 — 13:32316461 C>T
+
+| Field | Value |
+|-------|-------|
+| **rsID** | rs80359550 |
+| **HGVS** | NM_000059.4:c.9976A>T |
+| **Consequence** | stop_gained |
+| **Impact** | HIGH |
+| **SIFT** | deleterious |
+| **PolyPhen** | probably_damaging |
+| **ClinVar** | Pathogenic |
+| **ClinVar Condition** | Familial cancer of breast |
+| **gnomAD AF (global)** | 0.000004 |
+| **gnomAD AF (AFR)** | 0.000000 |
+| **gnomAD AF (EUR)** | 0.000006 |
+
+### 2. CFTR — 7:117548628 CTTT>C
+
+| Field | Value |
+|-------|-------|
+| **rsID** | rs113993960 |
+| **HGVS** | NM_000492.4:c.1521_1523delCTT |
+| **Consequence** | frameshift_variant |
+| **Impact** | HIGH |
+| **SIFT** | deleterious |
+| **PolyPhen** | N/A |
+| **ClinVar** | Pathogenic |
+| **ClinVar Condition** | Cystic fibrosis |
+| **gnomAD AF (global)** | 0.021000 |
+| **gnomAD AF (AFR)** | 0.000300 |
+| **gnomAD AF (EUR)** | 0.033000 |
+
+### 3. BRCA1 — 17:43063931 G>A
+
+| Field | Value |
+|-------|-------|
+| **rsID** | rs55770810 |
+| **HGVS** | NM_007294.4:c.5095C>T (p.Arg1699Trp) |
+| **Consequence** | missense_variant |
+| **Impact** | MODERATE |
+| **SIFT** | deleterious |
+| **PolyPhen** | probably_damaging |
+| **ClinVar** | Pathogenic |
+| **ClinVar Condition** | Hereditary breast and ovarian cancer syndrome |
+| **gnomAD AF (global)** | 0.000024 |
+| **gnomAD AF (AFR)** | N/A |
+| **gnomAD AF (EUR)** | N/A |
+
+### 4. APOE — 19:44908684 T>C
+
+| Field | Value |
+|-------|-------|
+| **rsID** | rs429358 |
+| **HGVS** | NM_000041.4:c.388T>C |
+| **Consequence** | missense_variant |
+| **Impact** | MODERATE |
+| **SIFT** | tolerated |
+| **PolyPhen** | benign |
+| **ClinVar** | Risk factor |
+| **ClinVar Condition** | Alzheimer disease |
+| **gnomAD AF (global)** | 0.147000 |
+| **gnomAD AF (AFR)** | 0.232000 |
+| **gnomAD AF (EUR)** | 0.143000 |
+
+### 5. MTHFR — 1:11796321 G>A
+
+| Field | Value |
+|-------|-------|
+| **rsID** | rs1801133 |
+| **HGVS** | NM_005957.5:c.665C>T |
+| **Consequence** | missense_variant |
+| **Impact** | MODERATE |
+| **SIFT** | tolerated |
+| **PolyPhen** | benign |
+| **ClinVar** | Benign/Likely benign |
+| **ClinVar Condition** | Homocystinuria |
+| **gnomAD AF (global)** | 0.312000 |
+| **gnomAD AF (AFR)** | 0.198000 |
+| **gnomAD AF (EUR)** | 0.367000 |
+
+---
+
+---
+*ClawBio VCF Annotator is a research tool. Not a clinical diagnostic device. Always consult a qualified geneticist for clinical decisions.*
+""", 'results.json': """\
+[
+  {
+    "chrom": "13",
+    "pos": "32316461",
+    "id": "rs80359550",
+    "ref": "C",
+    "alt": "T",
+    "gene": "BRCA2",
+    "consequence": "stop_gained",
+    "impact": "HIGH",
+    "clinvar_significance": "Pathogenic",
+    "clinvar_condition": "Familial cancer of breast",
+    "gnomad_af": 4e-06,
+    "gnomad_af_afr": 0.0,
+    "gnomad_af_eur": 6e-06,
+    "hgvs": "NM_000059.4:c.9976A>T",
+    "sift": "deleterious",
+    "polyphen": "probably_damaging"
+  },
+  {
+    "chrom": "7",
+    "pos": "117548628",
+    "id": "rs113993960",
+    "ref": "CTTT",
+    "alt": "C",
+    "gene": "CFTR",
+    "consequence": "frameshift_variant",
+    "impact": "HIGH",
+    "clinvar_significance": "Pathogenic",
+    "clinvar_condition": "Cystic fibrosis",
+    "gnomad_af": 0.021,
+    "gnomad_af_afr": 0.0003,
+    "gnomad_af_eur": 0.033,
+    "hgvs": "NM_000492.4:c.1521_1523delCTT",
+    "sift": "deleterious",
+    "polyphen": "N/A"
+  },
+  {
+    "chrom": "17",
+    "pos": "43063931",
+    "id": "rs55770810",
+    "ref": "G",
+    "alt": "A",
+    "gene": "BRCA1",
+    "consequence": "missense_variant",
+    "impact": "MODERATE",
+    "clinvar_significance": "Pathogenic",
+    "clinvar_condition": "Hereditary breast and ovarian cancer syndrome",
+    "gnomad_af": 2.4e-05,
+    "gnomad_af_afr": null,
+    "gnomad_af_eur": null,
+    "hgvs": "NM_007294.4:c.5095C>T (p.Arg1699Trp)",
+    "sift": "deleterious",
+    "polyphen": "probably_damaging"
+  },
+  {
+    "chrom": "19",
+    "pos": "44908684",
+    "id": "rs429358",
+    "ref": "T",
+    "alt": "C",
+    "gene": "APOE",
+    "consequence": "missense_variant",
+    "impact": "MODERATE",
+    "clinvar_significance": "Risk factor",
+    "clinvar_condition": "Alzheimer disease",
+    "gnomad_af": 0.147,
+    "gnomad_af_afr": 0.232,
+    "gnomad_af_eur": 0.143,
+    "hgvs": "NM_000041.4:c.388T>C",
+    "sift": "tolerated",
+    "polyphen": "benign"
+  },
+  {
+    "chrom": "1",
+    "pos": "11796321",
+    "id": "rs1801133",
+    "ref": "G",
+    "alt": "A",
+    "gene": "MTHFR",
+    "consequence": "missense_variant",
+    "impact": "MODERATE",
+    "clinvar_significance": "Benign/Likely benign",
+    "clinvar_condition": "Homocystinuria",
+    "gnomad_af": 0.312,
+    "gnomad_af_afr": 0.198,
+    "gnomad_af_eur": 0.367,
+    "hgvs": "NM_005957.5:c.665C>T",
+    "sift": "tolerated",
+    "polyphen": "benign"
+  }
+]\
+""", 'tables/variants.csv': """\
+chrom,pos,id,ref,alt,gene,consequence,impact,hgvs,sift,polyphen,clinvar_significance,clinvar_condition,gnomad_af,gnomad_af_afr,gnomad_af_eur
+13,32316461,rs80359550,C,T,BRCA2,stop_gained,HIGH,NM_000059.4:c.9976A>T,deleterious,probably_damaging,Pathogenic,Familial cancer of breast,4e-06,0.0,6e-06
+7,117548628,rs113993960,CTTT,C,CFTR,frameshift_variant,HIGH,NM_000492.4:c.1521_1523delCTT,deleterious,N/A,Pathogenic,Cystic fibrosis,0.021,0.0003,0.033
+17,43063931,rs55770810,G,A,BRCA1,missense_variant,MODERATE,NM_007294.4:c.5095C>T (p.Arg1699Trp),deleterious,probably_damaging,Pathogenic,Hereditary breast and ovarian cancer syndrome,2.4e-05,,
+19,44908684,rs429358,T,C,APOE,missense_variant,MODERATE,NM_000041.4:c.388T>C,tolerated,benign,Risk factor,Alzheimer disease,0.147,0.232,0.143
+1,11796321,rs1801133,G,A,MTHFR,missense_variant,MODERATE,NM_005957.5:c.665C>T,tolerated,benign,Benign/Likely benign,Homocystinuria,0.312,0.198,0.367
+"""})

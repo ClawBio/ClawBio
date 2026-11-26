@@ -127,7 +127,7 @@ The settings this document relies on, and their state on 17 September 2026:
   approving review, which cannot come from the author or from whoever pushed
   last; code-owner review for the paths in CODEOWNERS; and eleven required CI
   checks: `skill-lint`, `lockfile-check`, `dependency-audit`, `pip-audit`,
-  `test (3.11)`, `test (3.12)`, `test (3.13)`, `skill-harness`, `benchmark`,
+  `test (3.12)`, `test (3.13)`, `test (3.14)`, `skill-harness`, `benchmark`,
   `Analyse (python)` and `Analyse (actions)`. A new push dismisses earlier
   approvals, and force pushes are blocked. The approval and the wider check
   set were added the same day, at the second maintainer's request.

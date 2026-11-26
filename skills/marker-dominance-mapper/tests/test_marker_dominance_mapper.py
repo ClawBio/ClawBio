@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from clawbio.common import demo_runner
+
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 MODULE_PATH = SKILL_DIR / "marker_dominance_mapper.py"
@@ -144,3 +146,10 @@ def test_demo_outputs_are_byte_stable_across_hash_seeds(tmp_path):
         )
         digests.append((out / "reproducibility" / "checksums.sha256").read_text(encoding="utf-8"))
     assert digests[0] == digests[1]
+
+
+def test_demo_outputs_do_not_record_the_checkout_path(tmp_path):
+    """Reports are shared; an absolute path leaks the user's name and folder layout."""
+    outputs = demo_runner.demo_outputs("marker-dominance-mapper", tmp_path)
+    leaks = [name for name, text in outputs.items() if str(demo_runner.PROJECT_ROOT) in text]
+    assert leaks == []

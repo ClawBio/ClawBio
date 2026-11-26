@@ -26,7 +26,6 @@ data/
 !skills/ancestry-risk-profiler/data/demo_patient_south_asian.txt
 !skills/ancestry-risk-profiler/data/PROVENANCE.md
 !skills/methylation-clock/data/
-!skills/methylation-clock/data/GSE139307_small.csv.gz
 !skills/rare-disease-rnaseq/data/
 !skills/rare-disease-rnaseq/data/disease_panel.csv
 !skills/cnv-acmg-classifier/data/
@@ -35,6 +34,7 @@ data/
 !skills/eqtl-catalogue-region-fetch/data/
 !skills/eqtl-catalogue-region-fetch/data/dataset_index_r7.tsv
 !skills/eqtl-catalogue-region-fetch/data/dataset_index_r7.provenance.json
+!skills/snp-phewas/demo/mvp/GCST90475001-GCST90476000/*/harmonised/*.running.log
 skills/proteomics-de/output_diann_test/
 skills/proteomics-de/output_maxquant_test/
 .venv/

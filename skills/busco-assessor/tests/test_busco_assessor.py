@@ -11,6 +11,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from inline_snapshot import snapshot
+from clawbio.common import demo_runner
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SKILL_DIR))
@@ -722,3 +724,137 @@ class TestRunDemoLive:
             run_demo_live(args)
         data = json.loads((tmp_path / "result.json").read_text())
         assert "lineage" in data
+
+
+# ── Demo output snapshot ──────────────────────────────────────────────────────
+# Fails when a code change alters any demo number. If the change is intended,
+# run `pytest skills/busco-assessor/tests --inline-snapshot=fix`; it rewrites the
+# snapshot() values below, and the PR diff shows which numbers moved.
+
+@pytest.mark.demo_snapshot
+def test_demo_output_matches_snapshot(tmp_path):
+    assert demo_runner.demo_outputs("busco-assessor", tmp_path) == snapshot({'busco_run/full_table.tsv': """\
+# Busco id	Status	Sequence	Score	Length
+1098at2	Complete	seq1	742.3	312
+1099at2	Complete	seq1	698.1	287
+1100at2	Complete	seq2	812.5	445
+1101at2	Duplicated	seq3	756.2	318
+1102at2	Complete	seq1	623.9	201
+1103at2	Fragmented	seq2	341.2	98
+1104at2	Missing	N/A	0.0	0
+1105at2	Complete	seq4	887.4	521
+1106at2	Complete	seq5	701.3	334
+1107at2	Missing	N/A	0.0	0
+""", 'busco_run/short_summary.json': """\
+{
+  "one_line_summary": "C:95.2%[S:93.1%,D:2.1%],F:2.3%,M:2.5%,n:124",
+  "dataset": "bacteria_odb12",
+  "mode": "genome",
+  "Complete": 118,
+  "Single copy": 115,
+  "Multi copy": 3,
+  "Fragmented": 3,
+  "Missing": 3,
+  "n_markers": 124
+}\
+""", 'busco_run/short_summary.txt': """\
+# BUSCO version is: 6.0.0
+# The lineage dataset is: bacteria_odb12 (Creation date: 2021-09-02, number of species: 3857, number of BUSCOs: 124)
+# Summarized benchmarking in ALL lineages: <OUTPUT_DIR>/busco_run
+# BUSCO was run in mode: genome
+# Gene predictor used: prodigal
+
+        --------------------------------------------------
+        |Results from dataset bacteria_odb12               |
+        --------------------------------------------------
+        |C:95.2%[S:93.1%,D:2.1%],F:2.3%,M:2.5%,n:124      |
+        |118    Complete BUSCOs (C)                       |
+        |115    Complete and single-copy BUSCOs (S)       |
+        |3      Complete and duplicated BUSCOs (D)        |
+        |3      Fragmented BUSCOs (F)                     |
+        |3      Missing BUSCOs (M)                        |
+        |124    Total BUSCO groups searched               |
+        --------------------------------------------------
+""", 'demo_assembly.fna': """\
+>seq1 demo synthetic sequence
+ATGCGATCGATCGATCGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTA
+>seq2 demo synthetic sequence
+GCTAGCTAGCTAGCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCG
+>seq3 demo synthetic sequence
+CGATCGATCGATCGATCGATCGATCGTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCT
+>seq4 demo synthetic sequence
+TAGCTAGCTAGCTAGCTAGCTAGCTAGCTAGCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGAT
+>seq5 demo synthetic sequence
+ATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATC
+""", 'report.md': """\
+# BUSCO Assessor Report
+
+**Date**: <TIMESTAMP> UTC
+**Mode**: genome (demo)
+**Lineage**: bacteria_odb12
+**Input**: <OUTPUT_DIR>/demo_assembly.fna
+
+## Completeness Summary
+
+| Metric | Count | Percentage |
+|--------|-------|-----------|
+| Complete (C) | 118 | 95.2% |
+| \xa0\xa0Single-copy (S) | 115 | 93.1% |
+| \xa0\xa0Duplicated (D) | 3 | 2.1% |
+| Fragmented (F) | 3 | 2.3% |
+| Missing (M) | 3 | 2.5% |
+| Total searched (n) | 124 | — |
+
+**Score string**: `C:95.2%[S:93.1%,D:2.1%],F:2.3%,M:2.5%,n:124`
+
+## Interpretation
+
+High completeness (95.2% C) indicates a near-complete assembly for this lineage.
+Duplication rate of 2.1% is within expected range.
+
+## Top Gene Results (first 10)
+
+| BUSCO ID | Status | Sequence | Score | Length |
+|----------|--------|----------|-------|--------|
+| 1098at2 | Complete | seq1 | 742.3 | 312 |
+| 1099at2 | Complete | seq1 | 698.1 | 287 |
+| 1100at2 | Complete | seq2 | 812.5 | 445 |
+| 1101at2 | Duplicated | seq3 | 756.2 | 318 |
+| 1102at2 | Complete | seq1 | 623.9 | 201 |
+| 1103at2 | Fragmented | seq2 | 341.2 | 98 |
+| 1104at2 | Missing | N/A | 0.0 | 0 |
+| 1105at2 | Complete | seq4 | 887.4 | 521 |
+| 1106at2 | Complete | seq5 | 701.3 | 334 |
+| 1107at2 | Missing | N/A | 0.0 | 0 |
+
+---
+
+*ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.*
+""", 'result.json': """\
+{
+  "C": 95.2,
+  "S": 93.1,
+  "D": 2.1,
+  "F": 2.3,
+  "M": 2.5,
+  "n": 124,
+  "score_string": "C:95.2%[S:93.1%,D:2.1%],F:2.3%,M:2.5%,n:124",
+  "lineage": "bacteria_odb12",
+  "mode": "genome",
+  "run_parameters": {
+    "input": "<OUTPUT_DIR>/demo_assembly.fna",
+    "output": "<OUTPUT_DIR>",
+    "demo": true,
+    "demo_live": false,
+    "mode": "genome",
+    "augustus": false,
+    "lineage": null,
+    "auto_lineage": false,
+    "auto_lineage_euk": false,
+    "auto_lineage_prok": false,
+    "cpu": 4,
+    "download_path": null,
+    "organism": null
+  }
+}\
+"""})

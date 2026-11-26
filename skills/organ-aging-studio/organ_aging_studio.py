@@ -196,10 +196,10 @@ def run_studio(
             tables_dir / "protein_contributions.csv", index=False
         )
 
-    (output_dir / "result.json").write_text(json.dumps(results, indent=2))
+    (output_dir / "result.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
 
     report = build_report(results)
-    (output_dir / "report.md").write_text(report)
+    (output_dir / "report.md").write_text(report, encoding="utf-8")
 
     cmd = ["python", "skills/organ-aging-studio/organ_aging_studio.py"]
     cmd += ["--demo"] if demo else ["--input", str(input_path)]
@@ -340,6 +340,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    # Redirected stdout and stderr use the locale encoding (for example cp1252
+    # on Windows, or ASCII in the C locale), which has no ✓ or →. Keep that
+    # encoding, but escape what it cannot represent instead of failing after
+    # the outputs are written.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
     parser = build_parser()
     args = parser.parse_args()
     if not args.demo and not args.input:

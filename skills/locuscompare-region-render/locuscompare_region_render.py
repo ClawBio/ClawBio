@@ -18,9 +18,9 @@ Outputs:
   panels, the lead variant, and the LD reference panel.
 
 If `ld_client` is None (e.g. plink not installed in the current environment),
-the renderer still produces all four panels but with r² coloring substituted
-by a uniform grey; the manifest block records `ld_panel: "none"` and a caveat
-in the caveats list.
+the renderer still produces all four panels, with every point drawn as a hollow
+grey "no LD value" marker; the manifest block records `ld_panel: "none"` and a
+caveat in the caveats list.
 
 When the eQTL Catalogue or GWAS Catalog source can't resolve the studyId, the
 orchestrator raises Tier2NotAvailable so the caller can route to a credible-
@@ -74,7 +74,12 @@ from ld_1000g_region_compute import (
 )
 from ondemand_client import (
     OnDemand1000GLDClient,
+    OnDemandLDError,
 )
+
+# The on-demand LD client raises its own error class, not LDComputeError; both mean
+# "no LD for this lead" and both degrade the render rather than failing it.
+_LD_ERRORS = (LDComputeError, OnDemandLDError)
 from ukb_ppp_region_fetch import (
     RegionResult as UKBPPPRegionResult,
     UKBPPPAccessError,
@@ -96,6 +101,9 @@ from regional_plot import (
     GeneTrackEntry,
     LocusVariant,
     RegionalLocusCompareInput,
+    _matches_lead,
+    _position_from_variant_id,
+    _variant_locus_key,
     harmonise_regions_for_locuscompare,
     render_full_locuscompare,
 )
@@ -134,6 +142,76 @@ def dispatch_exposure_kind(ot_study_id: str) -> str:
     if is_pqtl_study_id(ot_study_id):
         return EXPOSURE_KIND_UKB_PPP
     return EXPOSURE_KIND_EQTL_CATALOGUE
+
+
+# What KIND of QTL the exposure is, for the panel title, the scatter axes and the
+# manifest. One rule for every place the figure names the exposure, so a protein
+# QTL is never titled an expression QTL. The plain label of the source's own
+# quantification code stays in the eQTL fetcher (`quant_method_label`); this map
+# only groups those codes into a modality.
+EXPOSURE_MODALITY_LABELS: dict[str, str] = {
+    "eqtl": "expression QTL",
+    "sqtl": "splicing QTL",
+    "tuqtl": "transcript-usage QTL",
+    "exon_qtl": "exon-level QTL",
+    "tx_qtl": "transcript-level QTL",
+    "pqtl": "protein QTL",
+    "sceqtl": "single-cell expression QTL",
+    "qtl": "molecular QTL (quantification not stated)",
+}
+
+# Short tag shown in the panel title and on the scatter axes.
+_EXPOSURE_MODALITY_TAGS: dict[str, str] = {
+    "eqtl": "eQTL",
+    "sqtl": "sQTL",
+    "tuqtl": "tuQTL",
+    "exon_qtl": "exon eQTL",
+    "tx_qtl": "transcript eQTL",
+    "pqtl": "pQTL",
+    "sceqtl": "sceQTL",
+    "qtl": "QTL",
+}
+
+# eQTL Catalogue quantification code -> modality. A code not listed here (or no
+# code at all, as for a pre-fetched file that does not declare one) is "qtl":
+# the figure then says QTL rather than guessing expression.
+_QUANT_METHOD_MODALITY: dict[str, str] = {
+    "ge": "eqtl",
+    "microarray": "eqtl",
+    "afc": "eqtl",  # eQTL Catalogue writes "aFC"; codes are matched lower-cased
+    "exon": "exon_qtl",
+    "tx": "tx_qtl",
+    "txrev": "tuqtl",
+    "leafcutter": "sqtl",
+    "majiq": "sqtl",
+    "aptamer": "pqtl",
+}
+
+
+def exposure_modality(
+    exposure_kind: str,
+    quant_method: str | None,
+    study_type: str | None = None,
+) -> tuple[str, str, str]:
+    """Return `(code, tag, label)` for the exposure, e.g. `("pqtl", "pQTL", "protein QTL")`.
+
+    A UKB-PPP exposure is a protein QTL whatever else is passed. Otherwise the
+    eQTL Catalogue quantification code decides; an unknown or absent code gives
+    `("qtl", "QTL", ...)`. `study_type == "single-cell"` turns an expression QTL
+    into a single-cell expression QTL (the fetcher does not carry the study type
+    today, so callers pass None until it does).
+    """
+    if exposure_kind == EXPOSURE_KIND_UKB_PPP:
+        code = "pqtl"
+    else:
+        code = _QUANT_METHOD_MODALITY.get((quant_method or "").strip().lower(), "qtl")
+        if (
+            code == "eqtl"
+            and study_type
+            and study_type.strip().lower().replace("_", "-") == "single-cell"
+        ):
+            code = "sceqtl"
+    return code, _EXPOSURE_MODALITY_TAGS[code], EXPOSURE_MODALITY_LABELS[code]
 
 
 @dataclass
@@ -234,6 +312,11 @@ class LocusCompareSpec:
     # variant_id (chr_pos_ref_alt), not rs_id; this field is human-readability
     # metadata only.
     lead_rs_id: str | None = None
+    # Optional credible-set members that may stand in for the lead at render time,
+    # as (variant_id, pip). Empty: the configured lead is drawn whatever happens to
+    # it. Non-empty: `_choose_lead` picks the first usable of the configured lead
+    # and then these by PIP (high to low); see the lead-fallback rule there.
+    lead_candidates: list[tuple[str, float]] = field(default_factory=list)
 
     exposure_id_extra: str = ""
     outcome_id_extra: str = ""
@@ -257,6 +340,10 @@ class LocusCompareSpec:
     # (e.g. locuscompare's Ensembl REST on-demand fetcher) without writing a
     # synthetic GTF to disk.
     prefetched_gene_track: list | None = None
+    # Where `prefetched_gene_track` came from, for the caption (e.g. "Ensembl REST
+    # (GRCh38), protein_coding" or "synthetic TSV genes.tsv"). None says nothing,
+    # rather than naming a source the genes did not come from.
+    gene_track_label: str | None = None
 
 
 def render_locuscompare_for_lead(
@@ -499,6 +586,8 @@ def _render_for_spec(
         # eQTL Catalogue path leaves these unset; mark for the
         # _build_short_labels switch.
         exposure_eqtl_release = None
+        exposure_quant_method: str | None = None
+        exposure_prefetched = False
         data_source_warnings.extend(f"ukb_ppp: {n}" for n in pqtl.notes)
     else:
         try:
@@ -521,19 +610,29 @@ def _render_for_spec(
                 f"eQTL Catalogue cannot resolve dataset {eqtl_dataset_id}: {e!s}"
             ) from e
         if exposure.n_variants == 0:
+            _src = (
+                "the pre-fetched exposure file"
+                if exposure.release.api_version == "prefetched" else "eQTL Catalogue"
+            )
             raise Tier2NotAvailable(
-                f"eQTL Catalogue returned zero variants for "
+                f"{_src} returned zero variants for "
                 f"{eqtl_dataset_id} at {chromosome}:{start_bp}-{end_bp}"
             )
         exposure_variants = exposure.variants
-        exposure_source = "eqtl_catalogue"
+        # A pre-fetched file comes through this branch too (its stub client tags
+        # the release "prefetched"). It is not eQTL Catalogue data as far as we
+        # know, so neither the manifest nor the warnings may say it is.
+        exposure_prefetched = exposure.release.api_version == "prefetched"
+        exposure_source = "prefetched" if exposure_prefetched else "eqtl_catalogue"
         exposure_source_release = exposure.release.dataset_release or "v7+"
         exposure_study_id = eqtl_dataset_id
         exposure_protein_label = ""
         exposure_ancestry_code = ""
         exposure_ancestry_label = ""
         exposure_eqtl_release = exposure.release
-        data_source_warnings.extend(f"eqtl_catalogue: {n}" for n in exposure.notes)
+        exposure_quant_method = exposure.release.quant_method or None
+        _warn_prefix = "prefetched exposure" if exposure_prefetched else "eqtl_catalogue"
+        data_source_warnings.extend(f"{_warn_prefix}: {n}" for n in exposure.notes)
         # Surface the file-class disclosure when the window came out of
         # .cc.tsv.gz rather than the full nominal pass. Per the catalogue's
         # docs/Columns_parquet.md, .cc keeps only the traits with permutation
@@ -554,11 +653,14 @@ def _render_for_spec(
         #
         # file_class is None only for a result that never read one (a
         # hand-built test double or a replayed fixture); the quant-method rule
-        # is kept as the fallback for that case alone.
+        # is kept as the fallback for that case alone. A pre-fetched file also
+        # has no file_class, but it is not an eQTL Catalogue file at all, so the
+        # fallback must not claim it is one.
         _fc = (exposure.file_class or "").lower()
         _qm = (exposure.release.quant_method or "").lower()
         _credible_set_filtered = (
-            _fc == "cc" if _fc else bool(_qm) and _qm not in {"ge", "microarray"}
+            _fc == "cc" if _fc
+            else not exposure_prefetched and bool(_qm) and _qm not in {"ge", "microarray"}
         )
         if _credible_set_filtered:
             # The quant_method clause is dropped rather than printed empty when
@@ -588,12 +690,18 @@ def _render_for_spec(
         raise Tier2NotAvailable(
             f"GWAS Catalog cannot resolve accession {gwas_accession}: {e!s}"
         ) from e
+    # Same for a pre-fetched outcome file: its stub tags the release "prefetched".
+    outcome_prefetched = outcome.release.harmonised_url == "prefetched"
     if outcome.n_variants == 0:
+        _src = "the pre-fetched outcome file" if outcome_prefetched else "GWAS Catalog"
         raise Tier2NotAvailable(
-            f"GWAS Catalog returned zero variants for "
+            f"{_src} returned zero variants for "
             f"{gwas_accession} at {chromosome}:{start_bp}-{end_bp}"
         )
-    data_source_warnings.extend(f"gwas_catalog: {n}" for n in outcome.notes)
+    data_source_warnings.extend(
+        f"{'prefetched outcome' if outcome_prefetched else 'gwas_catalog'}: {n}"
+        for n in outcome.notes
+    )
 
     # 2b. Odds ratio -> log-odds effect size, on the FETCHED rows, before the allele
     # flip in `harmonise_regions_for_locuscompare`, so a flipped row negates the derived
@@ -641,6 +749,28 @@ def _render_for_spec(
             f"the p-value panels only"
         )
 
+    # 2c. Lead fallback (only when the config lists credible-set candidates). The
+    # configured lead can be missing from one dataset or from the LD panel; a
+    # credible-set member present in all three then carries the diamond, the labels
+    # and the Wald-ratio slope, while the x-range stays on the fetched window, and the
+    # swap is stated as a caveat.
+    requested_lead_variant_id = lead_variant_id
+    lead_choice: LeadChoice | None = None
+    if spec.lead_candidates:
+        lead_choice = _choose_lead(
+            configured=lead_variant_id,
+            candidates=spec.lead_candidates,
+            lead_position_bp=lead_position_bp,
+            window_bp=window_bp,
+            chromosome=chromosome,
+            exposure_variants=exposure_variants,
+            outcome_rows=outcome_rows,
+            ld_client=ld_client,
+        )
+        lead_variant_id = lead_choice.used
+        if lead_choice.sentence:
+            extra_caveats.append(lead_choice.sentence)
+
     # 3. LD r² (optional; gracefully degrade when plink not installed).
     r2_by_variant: dict[str, float] = {lead_variant_id: 1.0}
     plink_version = ""
@@ -649,24 +779,43 @@ def _render_for_spec(
     if ld_client is not None:
         partner_ids = [v.variant_id for v in exposure_variants if v.variant_id != lead_variant_id]
         try:
-            ld = ld_client.r2_with_lead(
-                lead=lead_variant_id,
-                partners=partner_ids,
-                chromosome=chromosome,
-                window_bp=window_bp,
+            if (lead_choice is not None and lead_choice.ld_error is not None
+                    and lead_variant_id not in lead_choice.ld_results):
+                # The fallback loop hit an LD failure before the drawn lead's own LD
+                # was computed; the render degrades exactly as a failed first call
+                # would. When the drawn lead's LD did come back, that result stands.
+                raise lead_choice.ld_error
+            ld = (
+                lead_choice.ld_results.get(lead_variant_id)
+                if lead_choice is not None else None
             )
-        except LDComputeError as e:
+            if ld is None:
+                ld = ld_client.r2_with_lead(
+                    lead=lead_variant_id,
+                    partners=partner_ids,
+                    chromosome=chromosome,
+                    window_bp=window_bp,
+                )
+        except _LD_ERRORS as e:
             notes.append(f"LD computation failed: {e!s}; rendering without LD coloring")
-            extra_caveats.append("LD r² unavailable (compute failed); points show as grey")
+            extra_caveats.append("LD r² unavailable (compute failed); points drawn hollow (no LD value)")
         else:
             for pair in ld.pairs:
                 r2_by_variant[pair.partner_variant_id] = pair.r2
+            if partner_ids and not ld.pairs:
+                # The client returns no pairs, rather than raising, when the lead
+                # (or every partner) is missing from the panel. Without this the
+                # plot is all hollow points under a caption that says nothing.
+                extra_caveats.append(
+                    "LD r² unavailable: the lead (or every other variant) is not in the "
+                    "LD reference panel; points drawn hollow (no LD value)"
+                )
             plink_version = ld.plink_version
             panel_id = ld.panel_id
             panel_version = ld.panel_version
     else:
         notes.append("ld_client is None; rendering without LD coloring")
-        extra_caveats.append("LD r² unavailable (no plink client provided); points show as grey")
+        extra_caveats.append("LD r² unavailable (no plink client provided); points drawn hollow (no LD value)")
 
     # 4. Harmonise + join.
     pairs = harmonise_regions_for_locuscompare(
@@ -714,6 +863,13 @@ def _render_for_spec(
     exposure_track = [_eqtl_to_locus_variant(v) for v in exposure_variants]
     outcome_track = [_gwas_to_locus_variant(v) for v in outcome_rows]
 
+    modality_code, modality_tag, modality_label = exposure_modality(
+        spec.exposure_kind,
+        exposure_quant_method,
+        # Hook for single-cell studies; the release does not carry it yet.
+        getattr(exposure_eqtl_release, "study_type", None),
+    )
+
     exposure_short_label, outcome_short_label = _build_short_labels_from_spec(
         spec,
         exposure_release=exposure_eqtl_release,
@@ -727,8 +883,10 @@ def _render_for_spec(
     #    when no prefetched track was supplied; graceful-degrades to no track
     #    if Ensembl is offline).
     gene_track: list[GeneTrackEntry] = []
+    gene_track_label: str | None = None
     if spec.prefetched_gene_track is not None:
         gene_track = list(spec.prefetched_gene_track)
+        gene_track_label = spec.gene_track_label
     else:
         try:
             genes, release_meta, gt_notes = fetch_region_genes_remote(
@@ -745,6 +903,13 @@ def _render_for_spec(
                 )
                 for g in genes
             ]
+            # Name the release the genes came from; a fetch that reports none
+            # gets no caption line rather than a guessed one.
+            _release = (release_meta or {}).get("release_label")
+            gene_track_label = (
+                f"{_release}, {', '.join(gene_biotypes or ())}".rstrip(", ")
+                if _release else None
+            )
             notes.extend(gt_notes)
         except (requests.RequestException, ValueError) as e:
             notes.append(f"gene track unavailable: {e!s}")
@@ -757,11 +922,18 @@ def _render_for_spec(
             f"ancestry {exposure_ancestry_label} ({exposure_ancestry_code})"
             f"{spec.exposure_id_extra}"
         )
+    elif exposure_prefetched:
+        exposure_label_long = _prefetched_caption(exposure_study_id, spec.exposure_id_extra)
     else:
         exposure_label_long = (
             f"eQTL Catalogue {exposure_source_release}; "
             f"study {exposure_study_id}{spec.exposure_id_extra}"
         )
+    outcome_label_long = (
+        _prefetched_caption(gwas_accession, spec.outcome_id_extra)
+        if outcome_prefetched
+        else f"GWAS Catalog harmonised; study {gwas_accession}{spec.outcome_id_extra}"
+    )
 
     inp = RegionalLocusCompareInput(
         pairs=pairs,
@@ -773,11 +945,16 @@ def _render_for_spec(
             if ld_client is not None and panel_id != "none"
             else "no LD reference (plot rendered without LD coloring)"
         ),
-        window_label=f"+/-{window_bp // 2000} kb of lead {lead_variant_id}{pip_label}",
-        exposure_label=exposure_label_long,
-        outcome_label=(
-            f"GWAS Catalog harmonised; study {gwas_accession}{spec.outcome_id_extra}"
+        window_label=(
+            f"+/-{window_bp // 2000} kb of lead {lead_variant_id}{pip_label}"
+            if lead_variant_id == spec.lead_variant_id else
+            f"+/-{window_bp // 2000} kb of the requested lead {spec.lead_variant_id} "
+            f"(window as fetched); lead shown {lead_variant_id}"
         ),
+        window_centre_variant_id=(
+            spec.lead_variant_id if lead_variant_id != spec.lead_variant_id else None),
+        exposure_label=exposure_label_long,
+        outcome_label=outcome_label_long,
         provenance_label=f"{spec.provenance_prefix}Rendered: {fetched_at}",
         caveats=extra_caveats + spec.notes,
         exposure_track_variants=exposure_track,
@@ -786,9 +963,11 @@ def _render_for_spec(
         exposure_short_label=exposure_short_label,
         outcome_short_label=outcome_short_label,
         gene_track=gene_track,
+        gene_track_label=gene_track_label,
         focal_gene_symbol=spec.exposure_gene_symbol or None,
         outcome_effect_scale_label=outcome_scale_label,
         effect_size_unavailable_reason=effect_size_reason,
+        exposure_modality_tag=modality_tag,
     )
     render_full_locuscompare(inp, out_path)
 
@@ -806,7 +985,7 @@ def _render_for_spec(
         exposure_ancestry=exposure_ancestry_code,
         exposure_ancestry_label=exposure_ancestry_label,
         exposure_harmonisation_version="",  # neither source surfaces this
-        outcome_source="gwas_catalog_harmonised",
+        outcome_source="prefetched" if outcome_prefetched else "gwas_catalog_harmonised",
         outcome_source_release=outcome.release.fetched_at_utc.split("T")[0],
         outcome_study_id=gwas_accession,
         outcome_harmonisation_version="",
@@ -824,6 +1003,14 @@ def _render_for_spec(
         data_source_warnings=data_source_warnings,
         plot_artifact=str(out_path.name),
         fetched_at=fetched_at,
+        exposure_modality=modality_code,
+        exposure_modality_label=modality_label,
+        exposure_quant_method=exposure_quant_method,
+        exposure_quant_method_label=(
+            exposure_eqtl_release.quant_method_label
+            if exposure_quant_method and exposure_eqtl_release is not None
+            else None
+        ),
     )
     # Where the outcome effect sizes came from, with the human label beside the code,
     # and why the effect-size panel is empty when it is.
@@ -831,6 +1018,12 @@ def _render_for_spec(
     block["outcome_beta_source_label"] = beta_source_label(outcome_beta_source)
     block["outcome_effect_scale_label"] = outcome_scale_label
     block["effect_size_panel_unavailable_reason"] = effect_size_reason
+    # The lead actually drawn is `lead_variant_id` above; these record what was asked
+    # for and, when they differ, why. Added here rather than in the shared manifest
+    # builder, which other callers use unchanged.
+    block["lead_requested_variant_id"] = requested_lead_variant_id
+    block["lead_fallback"] = lead_choice.fallback if lead_choice is not None else None
+    block["lead_candidates"] = lead_choice.rows if lead_choice is not None else []
 
     return Tier2Result(
         plot_path=out_path,
@@ -841,10 +1034,247 @@ def _render_for_spec(
     )
 
 
+# ---------------------------------------------------------------- lead fallback
+# One status per id in {configured lead} plus the config's credible-set candidates.
+LEAD_CANDIDATE_STATUSES: tuple[str, ...] = (
+    "used",
+    "not_in_exposure",
+    "not_in_outcome",
+    "alleles_irreconcilable",
+    "palindromic",
+    "beyond_window_bound",
+    "not_in_ld_panel",
+    "ld_failed",
+    "not_evaluated",
+)
+
+# LD is tried for at most this many eligible variants (each try is one plink run and
+# one region fetch); the rest are recorded as not evaluated.
+MAX_LEAD_LD_ATTEMPTS = 10
+# How many passed-over members the swap sentence names (the manifest lists them all).
+_PASSED_OVER_NAMED = 3
+
+# Why a variant could not carry the plot, as a clause after "the requested lead X".
+_LEAD_STATUS_TEXT: dict[str, str] = {
+    "not_in_exposure": "is not in the exposure data",
+    "not_in_outcome": "is not in the outcome data",
+    "alleles_irreconcilable": (
+        "is in both datasets but did not join across them (its alleles are written "
+        "differently in the two)"
+    ),
+    "palindromic": (
+        "is strand-ambiguous (an A/T or G/C variant), so its alleles cannot be aligned"
+    ),
+    "beyond_window_bound": "is too far from the centre of the fetched window",
+    "not_in_ld_panel": (
+        "is not in the LD reference panel, so no point could be coloured by LD with it"
+    ),
+    "ld_failed": "could not be checked against the LD reference panel (the LD run failed)",
+}
+
+
+class LeadChoiceError(RuntimeError):
+    """The lead-candidate rows do not partition the candidates (a bug, not data)."""
+
+
+@dataclass
+class LeadChoice:
+    used: str
+    rows: list[dict[str, Any]]
+    fallback: dict[str, str] | None
+    sentence: str | None
+    ld_results: dict[str, Any] = field(default_factory=dict)
+    ld_error: Exception | None = None  # an LDComputeError or OnDemandLDError
+
+
+def _choose_lead(
+    *,
+    configured: str,
+    candidates: list[tuple[str, float]],
+    lead_position_bp: int,
+    window_bp: int,
+    chromosome: str,
+    exposure_variants,
+    outcome_rows,
+    ld_client,
+) -> LeadChoice:
+    """Pick the variant the plot is centred on.
+
+    Order: the configured lead, then the candidates by PIP (high to low). Eligible
+    = in both datasets (matched allele-order-robustly, as the diamond is), not
+    palindromic, and within window_bp // 10 of the fetched window's centre (the
+    window is not refetched). Eligible ids are tried against the LD panel in that
+    order, stopping at the first that returns any LD pairs. When none does, the
+    first eligible id is used: being in both datasets outranks being in the LD
+    panel, and the configured lead wins ties. When none is eligible the configured
+    lead is kept. With no LD client, LD is not a criterion. An LD failure ends the
+    loop; the caller then degrades as it would without the fallback.
+
+    Every id gets exactly one status row; a broken partition raises.
+    """
+    ordered: list[tuple[str, float | None]] = [(configured, None)]
+    ordered += [(vid, float(pip)) for vid, pip in sorted(candidates, key=lambda c: -float(c[1]))]
+    ids: list[str] = []
+    pips: dict[str, float | None] = {}
+    first_by_key: dict[Any, str] = {}
+    for vid, pip in ordered:
+        key = _variant_locus_key(vid) or vid
+        if key in first_by_key:
+            first = first_by_key[key]
+            if pips[first] is None:
+                pips[first] = pip  # the configured lead's own PIP, when it is listed
+            continue
+        first_by_key[key] = vid
+        ids.append(vid)
+        pips[vid] = pip
+
+    exposure_keys = {_variant_locus_key(v.variant_id) for v in exposure_variants}
+    outcome_keys = {_variant_locus_key(v.variant_id) for v in outcome_rows}
+    joined = harmonise_regions_for_locuscompare(
+        exposure_variants=exposure_variants,
+        outcome_variants=outcome_rows,
+        r2_by_variant={},
+        lead_variant_id=configured,
+    )
+    bound = window_bp // 10
+
+    def dataset_status(vid: str) -> str | None:
+        key = _variant_locus_key(vid)
+        if key not in exposure_keys:
+            return "not_in_exposure"
+        if key not in outcome_keys:
+            return "not_in_outcome"
+        pair = next((p for p in joined if _matches_lead(p.variant_id, vid)), None)
+        if pair is None:
+            return "alleles_irreconcilable"
+        if pair.palindromic_excluded:
+            return "palindromic"
+        pos = _position_from_variant_id(vid)
+        if pos is None or abs(pos - lead_position_bp) > bound:
+            return "beyond_window_bound"
+        return None
+
+    status: dict[str, str] = {}
+    eligible: list[str] = []
+    for vid in ids:
+        st = dataset_status(vid)
+        if st is None:
+            eligible.append(vid)
+        else:
+            status[vid] = st
+    configured_own = status.get(configured)
+
+    used: str | None = None
+    ld_results: dict[str, Any] = {}
+    ld_error: Exception | None = None  # an LDComputeError or OnDemandLDError
+    if ld_client is not None:
+        for vid in eligible[:MAX_LEAD_LD_ATTEMPTS]:
+            try:
+                res = ld_client.r2_with_lead(
+                    lead=vid,
+                    partners=[v.variant_id for v in exposure_variants if v.variant_id != vid],
+                    chromosome=chromosome,
+                    window_bp=window_bp,
+                )
+            except _LD_ERRORS as e:
+                ld_error = e
+                status[vid] = "ld_failed"
+                break
+            ld_results[vid] = res
+            if res.pairs:
+                used = vid
+                break
+            status[vid] = "not_in_ld_panel"
+    if used is None:
+        used = eligible[0] if eligible else configured
+    configured_reason = status.get(configured)
+    # A lead kept although something about it failed keeps that reason as data.
+    kept_despite = status.get(used)
+    status[used] = "used"
+    for vid in ids:
+        status.setdefault(vid, "not_evaluated")
+
+    rows = [
+        {
+            "variant_id": vid,
+            "pip": pips[vid],
+            "configured_lead": vid == configured,
+            "status": status[vid],
+            "used_despite": kept_despite if vid == used else None,
+        }
+        for vid in ids
+    ]
+    n_used = sum(1 for r in rows if r["status"] == "used")
+    unknown = {r["status"] for r in rows} - set(LEAD_CANDIDATE_STATUSES)
+    if len(rows) != len(ids) or len(set(ids)) != len(ids) or n_used != 1 or unknown:
+        raise LeadChoiceError(
+            f"lead candidates not partitioned: {len(ids)} ids, {len(rows)} rows, "
+            f"{n_used} marked used, unknown statuses {sorted(unknown)}"
+        )
+
+    def why(st: str | None) -> str:
+        if st == "beyond_window_bound":
+            return f"is more than {bound // 1000} kb from the centre of the fetched window"
+        return _LEAD_STATUS_TEXT.get(st or "", "could not be used")
+
+    fallback: dict[str, str] | None = None
+    sentence: str | None = None
+    if used != configured:
+        in_ld = used in ld_results and bool(ld_results[used].pairs)
+        where = (
+            "the exposure data, the outcome data and the LD reference panel"
+            if in_ld else "both the exposure and the outcome data"
+        )
+        pip_txt = f" (PIP {pips[used]:.3f})" if pips[used] is not None else ""
+        reason = f"the requested lead {why(configured_reason)}"
+        fallback = {"requested": configured, "used": used, "reason": reason}
+        # Name every member ranked above the one used, with why it was passed over, so
+        # the sentence cannot read as "nothing better existed" when a rule excluded it.
+        above = [v for v in ids[1:ids.index(used)] if v != configured]
+        passed = "".join(
+            f" {v}" + (f" (PIP {pips[v]:.3f})" if pips[v] is not None else "") + f" {why(status[v])}."
+            for v in above[:_PASSED_OVER_NAMED])
+        if len(above) > _PASSED_OVER_NAMED:
+            passed += (f" {len(above) - _PASSED_OVER_NAMED} more higher-PIP members were passed "
+                       f"over; the manifest's lead_candidates lists each with its reason.")
+        sentence = (
+            f"The plot's lead is {used}, not the requested lead {configured}: "
+            f"{reason}. {used}{pip_txt} is the highest-PIP credible-set member that is in "
+            f"{where}, is not strand-ambiguous and lies near the centre of the fetched "
+            f"window.{passed}"
+        )
+    elif configured_own is not None:
+        # Kept although it is unusable: say no candidate could stand in, rather than
+        # letting a missing diamond pass for a fine lead.
+        sentence = (
+            f"The requested lead {configured} {why(configured_own)}, and none of the "
+            f"{len(ids) - 1} other credible-set candidates is usable in its place, so "
+            f"the plot stays centred on it."
+        )
+    # Draw the lead under the id the joined data carries: a candidate listed with its
+    # alleles in the other order matches by locus, and the panels look ids up exactly.
+    drawn = next((p.variant_id for p in joined if _matches_lead(p.variant_id, used)), used)
+    if drawn != used and used in ld_results:
+        ld_results[drawn] = ld_results[used]
+    return LeadChoice(
+        used=drawn, rows=rows, fallback=fallback, sentence=sentence,
+        ld_results=ld_results, ld_error=ld_error,
+    )
+
+
 def _study_label(study_id: str) -> str:
     """A study id for a reader. The CLI's pre-fetched path has no accession and passes
     the placeholder `prefetched`, which names our input route, not a study."""
     return "supplied as a file" if study_id == "prefetched" else study_id
+
+
+def _prefetched_caption(study_id: str, extra: str) -> str:
+    """Caption source line for a side read from a pre-fetched file. Names no
+    upstream source, since a file does not say where it came from, and drops the
+    `prefetched` placeholder id, which names our input route, not a study."""
+    if study_id and study_id != "prefetched":
+        return f"pre-fetched file; study {study_id}{extra}"
+    return f"pre-fetched file{extra}"
 
 
 def _effect_size_unavailable_reason(
@@ -934,17 +1364,23 @@ def _build_short_labels_from_spec(
             )
             bits.append(f"{pqtl_release.ancestry_label}{n_label}")
         descriptor = " | ".join(bits) if bits else pqtl_release.protein_label
+        _, ukb_tag, _ = exposure_modality(EXPOSURE_KIND_UKB_PPP, None)
         exposure_short = (
-            f"Exposure (pQTL): {descriptor} "
+            f"Exposure ({ukb_tag}): {descriptor} "
             f"({pqtl_release.olink_reagent_id})"
         )
         return exposure_short, outcome_short
 
-    # eQTL Catalogue path (default).
+    # eQTL Catalogue path (default). The title's QTL tag comes from the one
+    # modality rule, so an aptamer or splicing dataset is not titled "eQTL".
+    quant_method = exposure_release.quant_method if exposure_release is not None else None
+    _, tag, _ = exposure_modality(
+        spec.exposure_kind, quant_method, getattr(exposure_release, "study_type", None),
+    )
     if exposure_release is None:
         # Should not happen for a well-formed spec; fall back to dataset_id.
         return (
-            f"Exposure (eQTL): {spec.eqtl_dataset_id}",
+            f"Exposure ({tag}): {spec.eqtl_dataset_id}",
             outcome_short,
         )
     bits = []
@@ -956,11 +1392,14 @@ def _build_short_labels_from_spec(
         bits.append(exposure_release.sample_group)
     elif exposure_release.tissue_label and exposure_release.condition_label:
         bits.append(f"{exposure_release.tissue_label} ({exposure_release.condition_label})")
-    if exposure_release.quant_method:
-        bits.append(exposure_release.quant_method)
+    if quant_method:
+        # "label (code)", e.g. "gene expression (ge)"; a code with no label is
+        # shown as itself rather than twice.
+        qm_label = exposure_release.quant_method_label
+        bits.append(f"{qm_label} ({quant_method})" if qm_label != quant_method else quant_method)
     descriptor = " | ".join(bits) if bits else spec.eqtl_dataset_id
     exposure_short = (
-        f"Exposure (eQTL): {descriptor} "
+        f"Exposure ({tag}): {descriptor} "
         f"({spec.eqtl_dataset_id})"
     )
     return exposure_short, outcome_short
@@ -1113,6 +1552,10 @@ def build_regional_locuscompare_block(
     exposure_protein_label: str = "",
     exposure_ancestry: str = "",
     exposure_ancestry_label: str = "",
+    exposure_modality: str | None = None,
+    exposure_modality_label: str | None = None,
+    exposure_quant_method: str | None = None,
+    exposure_quant_method_label: str | None = None,
 ) -> dict[str, Any]:
     """Construct one `regional_locuscompare` manifest block.
 
@@ -1130,6 +1573,11 @@ def build_regional_locuscompare_block(
     etc.) prefixed with the originating fetcher name. Kept separate from
     `ancestry_caveats` so the curated bucket stays clean and the noisy
     fetcher channel can be observed / triaged independently.
+
+    The four optional `exposure_modality*` / `exposure_quant_method*` fields
+    record what KIND of QTL the exposure is (e.g. `pqtl` / "protein QTL") and
+    the source's quantification code with its plain label (e.g. `aptamer`,
+    `ge` / "gene expression"). None when the source does not state it.
     """
     return {
         "ot_release": ot_release,
@@ -1139,6 +1587,10 @@ def build_regional_locuscompare_block(
         "exposure_protein_label": exposure_protein_label,
         "exposure_ancestry": exposure_ancestry,
         "exposure_ancestry_label": exposure_ancestry_label,
+        "exposure_modality": exposure_modality,
+        "exposure_modality_label": exposure_modality_label,
+        "exposure_quant_method": exposure_quant_method,
+        "exposure_quant_method_label": exposure_quant_method_label,
         "exposure_harmonisation_version": exposure_harmonisation_version,
         "outcome_source": outcome_source,
         "outcome_source_release": outcome_source_release,
@@ -1169,11 +1621,15 @@ def _now_utc() -> str:
 __all__ = [
     "EXPOSURE_KIND_EQTL_CATALOGUE",
     "EXPOSURE_KIND_UKB_PPP",
+    "EXPOSURE_MODALITY_LABELS",
+    "LEAD_CANDIDATE_STATUSES",
+    "LeadChoiceError",
     "LocusCompareSpec",
     "StudyIdMapping",
     "Tier2NotAvailable",
     "Tier2Result",
     "dispatch_exposure_kind",
+    "exposure_modality",
     "is_pqtl_study_id",
     "load_study_id_mappings",
     "render_locuscompare_for_lead",

@@ -89,8 +89,12 @@ before committing computational or experimental resources.
 output_directory/
 ├── report.md                      # Markdown report with scoring and rationale
 ├── validation_report.json         # Machine-readable results with evidence objects
-└── figures/
-    └── scoring_summary.png        # Bar chart of sub-scores with decision
+├── figures/
+│   └── scoring_summary.png        # Bar chart of sub-scores with decision
+└── reproducibility/
+    ├── commands.sh                # Command that reproduces this run
+    ├── environment.yml            # Conda environment
+    └── checksums.sha256           # SHA-256 of the outputs above, relative to output_directory
 ```
 
 ## Workflow
