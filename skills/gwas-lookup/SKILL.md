@@ -5,6 +5,12 @@ description: Federated variant lookup across 8 genomic databases — GWAS Catalo
 license: MIT
 metadata:
   version: 0.1.0
+  tags:
+  - genomics
+  - gwas
+  - gwas-catalog
+  - phewas
+  - summary-statistics
   openclaw:
     requires:
       bins:
