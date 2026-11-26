@@ -2,6 +2,7 @@
 
 import argparse
 import importlib.util
+import io
 import json
 import sys
 import urllib.error
@@ -9,6 +10,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from hypothesis import given, settings, strategies as st
 
 # Load modules from skill directory without installing them as packages.
 # Order matters: constants first (no deps), then api (needs constants),
@@ -1006,91 +1008,164 @@ eu = _load("euctr")
 
 
 # ---------------------------------------------------------------------------
-# euctr -- XML parsing
+# euctr -- real captured HTML parsing, status mapping, errors & properties
 # ---------------------------------------------------------------------------
 
-MOCK_EUCTR_XML = """<?xml version="1.0"?>
-<trials>
-  <trial>
-    <eudract_number>2024-000001-99</eudract_number>
-    <full_title>EU Trial Alpha</full_title>
-    <trial_status>Ongoing</trial_status>
-    <trial_phase>Phase II</trial_phase>
-    <trial_type>Interventional</trial_type>
-    <date_on>2024-03-01</date_on>
-    <medical_condition>Breast Cancer</medical_condition>
-    <trade_name>Tamoxifen</trade_name>
-    <primary_end_point>Overall survival</primary_end_point>
-  </trial>
-  <trial>
-    <eudract_number>2024-000002-99</eudract_number>
-    <title>EU Trial Beta</title>
-    <trial_status>Completed</trial_status>
-  </trial>
-</trials>"""
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
+LIVE_EUCTR_HTML = (FIXTURES_DIR / "euctr_breast_cancer.html").read_text(encoding="utf-8")
+LIVE_EUCTR_EMPTY_HTML = (FIXTURES_DIR / "euctr_empty.html").read_text(encoding="utf-8")
 
 
-def test_euctr_parse_xml():
-    trials = eu._parse_euctr_response(MOCK_EUCTR_XML, max_results=10)
-    assert len(trials) == 2
-    assert trials[0]["nct_id"] == "2024-000001-99"
-    assert trials[0]["title"] == "EU Trial Alpha"
-    assert trials[0]["conditions"] == ["Breast Cancer"]
-    assert trials[0]["interventions"] == ["Tamoxifen"]
+def test_euctr_api_uses_working_search_endpoint():
+    assert const.EUCTR_API == "https://www.clinicaltrialsregister.eu/ctr-search/search?query="
 
 
-def test_euctr_parse_xml_respects_max_results():
-    trials = eu._parse_euctr_response(MOCK_EUCTR_XML, max_results=1)
+def test_euctr_ongoing_is_not_mapped_to_recruiting():
+    assert eu._EUCTR_STATUS_MAP["Ongoing"] == "ACTIVE_NOT_RECRUITING"
+    assert eu._EUCTR_STATUS_MAP["Ongoing"] != "RECRUITING"
+
+
+def test_euctr_parse_captured_live_html():
+    trials = eu._parse_euctr_response(LIVE_EUCTR_HTML, max_results=20)
+    assert len(trials) == 20
+    ids = [t["nct_id"] for t in trials]
+    assert len(set(ids)) == 20
+    by_id = {t["nct_id"]: t for t in trials}
+
+    first = by_id["EUCTR2015-005147-14"]
+    assert first["title"] == (
+        "The effect of low dietary glycemic index, excercise and vitamin D "
+        "on breast cancer recurrence in women"
+    )
+    assert first["status"] == "COMPLETED"
+    assert first["start_date"] == "2016-03-16"
+    assert first["conditions"] == ["female breast cancer"]
+    assert "ISTITUTO NAZIONALE TUMORI" in first["summary"]
+    assert first["source"] == "euctr"
+
+    second = by_id["EUCTR2013-000698-57"]
+    assert second["status"] == "COMPLETED"
+    assert second["conditions"] == ["Breast Cancer"]
+
+
+def test_euctr_parse_captured_live_html_respects_max_results():
+    trials = eu._parse_euctr_response(LIVE_EUCTR_HTML, max_results=3)
+    assert len(trials) == 3
+
+
+def test_euctr_parse_captured_empty_search_returns_empty_list():
+    assert eu._parse_euctr_response(LIVE_EUCTR_EMPTY_HTML, max_results=10) == []
+
+
+def test_euctr_parse_deduplicates_by_eudract_number():
+    block = LIVE_EUCTR_HTML.split('<table class="result">')[1].split('<table class="result">')[0]
+    duplicated = f'<html><body><table class="result">{block}<table class="result">{block}</body></html>'
+    trials = eu._parse_euctr_response(duplicated, max_results=10)
     assert len(trials) == 1
+    assert trials[0]["nct_id"] == "EUCTR2015-005147-14"
 
 
-def test_euctr_parse_html_fallback():
-    """When XML parse fails, fallback to regex-based EudraCT ID extraction."""
-    html = """
-    <table><tr>
-      <td>2024-000003-99</td>
-      <td class="full">Some EU Trial Title</td>
-    </tr></table>
-    """
-    trials = eu._parse_euctr_response(html, max_results=10)
-    assert len(trials) == 1
-    assert trials[0]["nct_id"] == "EUCTR2024-000003-99"
-    assert trials[0]["title"] == "Some EU Trial Title"
+def test_euctr_parse_rejects_empty_and_unrecognised_html():
+    with pytest.raises(eu.EUCTRError):
+        eu._parse_euctr_response("", max_results=10)
+    with pytest.raises(eu.EUCTRError):
+        eu._parse_euctr_response("<html><body>unexpected error page</body></html>", max_results=10)
 
 
-def test_euctr_parse_empty_response():
-    trials = eu._parse_euctr_response("", max_results=10)
-    assert trials == []
+def test_euctr_fetch_raises_on_http_and_network_errors():
+    http_404 = urllib.error.HTTPError(
+        url="https://www.clinicaltrialsregister.eu/ctr-search/search?query=x",
+        code=404,
+        msg="Not Found",
+        hdrs=None,
+        fp=io.BytesIO(b""),
+    )
+    with patch("urllib.request.urlopen", side_effect=http_404):
+        with pytest.raises(eu.EUCTRError, match="404"):
+            eu.fetch_euctr("BRCA1")
 
-
-def test_euctr_parse_garbage():
-    trials = eu._parse_euctr_response("not xml not html nothing", max_results=10)
-    assert trials == []
-
-
-def test_euctr_fetch_network_error():
-    """Network errors should return empty list, not raise."""
     with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("refused")):
-        result = eu.fetch_euctr("BRCA1")
-    assert result == []
+        with pytest.raises(eu.EUCTRError):
+            eu.fetch_euctr("BRCA1")
 
 
-def test_euctr_trial_has_source_field():
-    """EUCTR trials should have source='euctr' for dedup/display."""
-    trials = eu._parse_euctr_response(MOCK_EUCTR_XML, max_results=1)
-    assert trials[0].get("source") == "euctr"
+def test_euctr_parse_valid_xml_still_supported():
+    xml_doc = """<?xml version="1.0"?>
+    <trials>
+      <trial>
+        <eudract_number>2024-000001-99</eudract_number>
+        <full_title>EU Trial Alpha</full_title>
+        <trial_status>Ongoing</trial_status>
+        <medical_condition>Breast Cancer</medical_condition>
+        <trade_name>Tamoxifen</trade_name>
+      </trial>
+    </trials>"""
+    trials = eu._parse_euctr_response(xml_doc, max_results=10)
+    assert len(trials) == 1
+    assert trials[0]["status"] == "ACTIVE_NOT_RECRUITING"
+    assert trials[0]["source"] == "euctr"
 
 
-def test_euctr_element_to_dict_missing_fields():
-    """Graceful handling when XML elements are missing."""
-    import xml.etree.ElementTree as ET
+def _make_euctr_result_block(eid: str, status: str, title: str) -> str:
+    return (
+        '<table class="result">'
+        f'<tr><td><span class="label">EudraCT Number:</span> {eid}</td>'
+        '<td><span class="label">Start Date*:</span> 2020-01-01</td></tr>'
+        '<tr><td colspan="3"><span class="label">Sponsor Name:</span> Sponsor Org</td></tr>'
+        f'<tr><td colspan="3"><span class="label">Full Title:</span> {title}</td></tr>'
+        '<tr><td colspan="3"><span class="label">Medical condition:</span> Breast cancer</td></tr>'
+        f'<tr><td colspan="3"><span class="status">({status})</span></td></tr>'
+        '</table>'
+    )
 
-    el = ET.fromstring("<trial><eudract_number>2024-000099-99</eudract_number></trial>")
-    trial = eu._euctr_element_to_dict(el)
-    assert trial["nct_id"] == "2024-000099-99"
-    assert trial["title"] == ""
-    assert trial["status"] == "UNKNOWN"
-    assert trial["conditions"] == []
+
+_EUDRACT_IDS = st.from_regex(r"20[0-2][0-9]-00[0-9]{4}-[0-9]{2}", fullmatch=True)
+_EUCTR_STATUSES = st.sampled_from(["Ongoing", "Completed", "Terminated", "Prematurely Ended", "Suspended"])
+_TITLES = st.text(alphabet="abcdefghijklmnopqrstuvwxyz ", min_size=3, max_size=30).map(str.strip).filter(bool)
+
+
+@given(
+    items=st.lists(
+        st.tuples(_EUDRACT_IDS, _EUCTR_STATUSES, _TITLES),
+        min_size=1,
+        max_size=8,
+    ),
+    perm=st.data(),
+)
+@settings(deadline=None)
+def test_euctr_parser_ids_unique_and_order_independent(items, perm):
+    blocks = [_make_euctr_result_block(eid, status, title) for eid, status, title in items]
+    shuffled = perm.draw(st.permutations(blocks))
+    html_a = "<html><body>" + "".join(blocks) + "</body></html>"
+    html_b = "<html><body>" + "".join(shuffled) + "</body></html>"
+
+    out_a = eu._parse_euctr_response(html_a, max_results=20)
+    out_b = eu._parse_euctr_response(html_b, max_results=20)
+
+    ids_a = [t["nct_id"] for t in out_a]
+    assert len(ids_a) == len(set(ids_a))
+    # Only compare full order-independence when all input records have distinct
+    # EudraCT IDs, because duplicate IDs can keep first-seen metadata.
+    if len({eid for eid, _, _ in items}) == len(items):
+        assert out_a == out_b
+
+
+def test_cli_euctr_unavailable_surfaces_in_report_and_summary(tmp_path):
+    """When EUCTR fails, report.md and summary.json must say it was unavailable."""
+    out_dir = tmp_path / "out"
+    with (
+        patch.object(ctf, "fetch_trials", return_value=list(MOCK_TRIALS)),
+        patch.object(eu, "fetch_euctr", side_effect=eu.EUCTRError("HTTP 404 Not Found")),
+        patch("sys.argv", ["ctf", "--query", "breast cancer", "--euctr", "--output", str(out_dir)]),
+    ):
+        ctf.main()
+
+    report = (out_dir / "report.md").read_text(encoding="utf-8")
+    summary = json.loads((out_dir / "summary.json").read_text(encoding="utf-8"))
+    assert "unavailable" in report.lower()
+    assert "HTTP 404" in report
+    assert summary["euctr"]["status"] == "unavailable"
+    assert "HTTP 404" in summary["euctr"]["error"]
 
 
 # ---------------------------------------------------------------------------

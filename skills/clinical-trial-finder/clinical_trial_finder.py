@@ -238,20 +238,29 @@ def main() -> None:
 
     # --- Optional EUCTR merge (step 14) ---
 
+    euctr_status: dict | None = None
     if args.euctr:
         import euctr
 
         query_str = query_info["query"]
         print(f"Querying EU Clinical Trials Register: {query_str!r}")
-        eu_trials = euctr.fetch_euctr(query_str)
-        if eu_trials:
+        try:
+            eu_trials = euctr.fetch_euctr(query_str)
+        except euctr.EUCTRError as exc:
+            euctr_status = {"status": "unavailable", "error": str(exc)}
+            print(f"  EUCTR unavailable: {exc} (continuing with CT.gov only)")
+        else:
             seen_ids = {t["nct_id"] for t in trials}
             added = [t for t in eu_trials if t["nct_id"] not in seen_ids]
             trials.extend(added)
-            print(f"  EUCTR: {len(eu_trials)} found, {len(added)} new (merged)")
-        else:
+            euctr_status = {
+                "status": "ok",
+                "count": len(eu_trials),
+                "merged": len(added),
+                "legacy_only": True,
+            }
             print(
-                "  EUCTR: no results or API unavailable (continuing with CT.gov only)"
+                f"  EUCTR (legacy EudraCT): {len(eu_trials)} found, {len(added)} new (merged)"
             )
 
     # --- Optional status filter (applied post-fetch, after merge) ---
@@ -264,13 +273,17 @@ def main() -> None:
 
     args.output.mkdir(parents=True, exist_ok=True)
 
-    report = write_report(query_info, trials, args.output, gene_context)
+    report = write_report(
+        query_info, trials, args.output, gene_context, euctr_status=euctr_status
+    )
     print(f"Report  -> {report}")
 
     html = write_html(query_info, trials, args.output, gene_context)
     print(f"HTML    -> {html}")
 
-    summary = write_summary(query_info, trials, args.output)
+    summary = write_summary(
+        query_info, trials, args.output, euctr_status=euctr_status
+    )
     print(f"Summary -> {summary}")
 
     csv_path = write_csv(trials, args.output)

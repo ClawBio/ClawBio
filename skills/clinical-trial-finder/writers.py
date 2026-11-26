@@ -94,6 +94,7 @@ def write_report(
     trials: list[dict],
     output_dir: Path,
     gene_context: dict | None = None,
+    euctr_status: dict | None = None,
 ) -> Path:
     """Write a human-readable markdown report.
 
@@ -121,11 +122,37 @@ def write_report(
     else:
         lines += [f"**Query**: `{query_info['query']}`  "]
 
+    source_label = "ClinicalTrials.gov API v2"
+    if euctr_status is not None:
+        if euctr_status.get("status") == "ok":
+            source_label = "ClinicalTrials.gov API v2 + EUCTR (legacy EudraCT registry)"
+        else:
+            source_label = "ClinicalTrials.gov API v2 (EUCTR unavailable)"
+
     lines += [
         f"**Generated**: {timestamp}  ",
-        "**Source**: ClinicalTrials.gov API v2  ",
+        f"**Source**: {source_label}  ",
         f"**Trials found**: {len(trials)} ({recruiting} recruiting)",
         "",
+    ]
+
+    if euctr_status is not None:
+        if euctr_status.get("status") == "ok":
+            lines += [
+                "> **EUCTR note**: EUCTR serves legacy EudraCT trials and results only "
+                "(ongoing EU/EEA trials since 2025 live in CTIS at https://euclinicaltrials.eu/). "
+                f"Found {euctr_status.get('count', 0)} EUCTR trial(s) "
+                f"({euctr_status.get('merged', 0)} merged).",
+                "",
+            ]
+        else:
+            lines += [
+                f"> **Warning -- EUCTR unavailable**: {euctr_status.get('error', 'request failed')}. "
+                "Results below cover ClinicalTrials.gov only.",
+                "",
+            ]
+
+    lines += [
         "---",
         "",
         "## Summary",
@@ -184,7 +211,12 @@ def write_report(
 # ---------------------------------------------------------------------------
 
 
-def write_summary(query_info: dict, trials: list[dict], output_dir: Path) -> Path:
+def write_summary(
+    query_info: dict,
+    trials: list[dict],
+    output_dir: Path,
+    euctr_status: dict | None = None,
+) -> Path:
     """Write machine-readable JSON with all trial data.
 
     This is the primary interface for downstream skill chaining --
@@ -198,6 +230,8 @@ def write_summary(query_info: dict, trials: list[dict], output_dir: Path) -> Pat
         "recruiting": count_recruiting(trials),
         "trials": trials,
     }
+    if euctr_status is not None:
+        payload["euctr"] = euctr_status
     path = output_dir / "summary.json"
     path.write_text(json.dumps(payload, indent=2))
     return path
