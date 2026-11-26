@@ -100,7 +100,13 @@
         "hmmix",
         "introgressed segments"
       ],
-      "tags": []
+      "tags": [
+        "genomics",
+        "population-genetics",
+        "ancestry",
+        "vcf",
+        "introgression"
+      ]
     },
     {
       "name": "arrayexpress-fetch",
