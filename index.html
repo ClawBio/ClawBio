@@ -351,6 +351,48 @@ clawbio run pharmgx --demo</pre>
       <div class="section-title">Latest from the community</div>
       <div style="display:grid;gap:0.75rem;max-width:700px;">
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">🏷️</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>docs(ukb-navigator): add metadata tags and regenerate catalog.</strong> Added four metadata tags (biobank, genomics, data-retrieval, literature) to <code style="font-size:0.85rem;">skills/ukb-navigator/SKILL.md</code> and regenerated <code style="font-size:0.85rem;">catalog.json</code>, <code style="font-size:0.85rem;">skills.html</code> and <code style="font-size:0.85rem;">directory.json</code> so the skill's keyword badges render. Contributed by @avaldivieso-meraki.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #934 · merged · 25 November 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">🛠️</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>fix(catalog): stop guessing a --demo for two skills whose script has none.</strong> <code style="font-size:0.85rem;">generate_catalog.py</code> gave every skill with an entry script a <code style="font-size:0.85rem;">--demo</code> command regardless of whether the script accepted one; clawpathy-autoresearch failed the nightly sweep and clinical-variant-prioritizer silently exited 0 having run nothing. Both now report <code style="font-size:0.85rem;">has_demo: false</code>. Contributed by @camlloyd.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #911 · merged · 25 November 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">🧹</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>ci(sweep): skip the six gi-* demos, which need GI_API_KEY.</strong> The nightly demo sweep has no Genomic Intelligence key, so gi-annotation, gi-chromatin, gi-enhancer, gi-expression, gi-promoter and gi-splice failed every night; they are now skipped the same way flow-bio and labstep already are. Contributed by @camlloyd.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #910 · merged · 25 November 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">🔧</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>test(repro): pass CLAWBIO_ROOT to replays in three skills' bundle tests.</strong> Following #901's change to how <code style="font-size:0.85rem;">commands.sh</code> locates the ClawBio checkout, the reproducibility-bundle tests for claw-metagenomics, rare-disease-rnaseq and seq-wrangler replay from a temp folder outside the checkout and need <code style="font-size:0.85rem;">CLAWBIO_ROOT</code> set explicitly; fixes 10 nightly test failures. Contributed by @camlloyd.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #909 · merged · 25 November 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">🔤</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>fix: write proteomics-clock outputs as UTF-8 with LF, and read repository text files as UTF-8 in tests.</strong> proteomics-clock's report, commands.sh and cache sidecars were written with the locale encoding, crashing on Windows for non-cp1252 paths and producing CRLF checksums that fail <code style="font-size:0.85rem;">sha256sum -c</code>; a companion fix adds explicit UTF-8 to 43 reads across <code style="font-size:0.85rem;">tests/</code> that otherwise mis-decode the catalog's non-ASCII keywords and README's box-drawing characters on Windows. Contributed by @mooreneural.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #914 and #915 · merged · 25 November 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">📄</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>docs(commands): run the demo in /analyse when the user has no file.</strong> Step 1 of <code style="font-size:0.85rem;">commands/analyse.md</code> told the agent to ask for an input file, contradicting AGENTS.md's mandatory demo fallback; the command now points to the skill's catalog <code style="font-size:0.85rem;">demo_command</code> (with <code style="font-size:0.85rem;">--output</code>) when no file is given, matching AGENTS.md. Contributed by @mooreneural.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #916 · merged · 25 November 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
           <span style="font-size:1.5rem;flex-shrink:0;">📦</span>
           <div>
             <div style="font-weight:600;font-size:0.95rem;"><strong>ci: publish via Trusted Publishing and re-enable metadata check.</strong> Package publishing now authenticates to PyPI over OIDC instead of an API token, now that the trusted publisher is registered; the pinned action's bundled twine also accepts Metadata-Version 2.5, so the release metadata check goes back on. Contributed by @camlloyd.</div>
@@ -376,48 +418,6 @@ clawbio run pharmgx --demo</pre>
           <div>
             <div style="font-weight:600;font-size:0.95rem;"><strong>fix: move 5 skills onto the shared reproducibility writers.</strong> claw-metagenomics, rare-disease-rnaseq, seq-wrangler, eqtl-catalogue-region-fetch and locuscompare-region-render each hand-rolled their own reproducibility bundle; all five now use <code style="font-size:0.85rem;">clawbio.common.reproducibility</code>, fixing unquoted replay paths and checksums that could not resolve from the output directory along the way. Contributed by @camlloyd.</div>
             <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #895 and 4 more · merged · 20–21 November 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🧰</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>test(benchmark): run the mock API server on a free port so concurrent runs don't collide.</strong> The benchmark mock API server bound a fixed port, so two concurrent <code style="font-size:0.85rem;">pytest tests/</code> runs on one machine (two worktrees, or two agents) failed with <code style="font-size:0.85rem;">Address already in use</code>; it now binds port 0 and reports whichever port the OS actually assigned. Contributed by @camlloyd.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #898 · merged · 21 November 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🔍</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>gwas-lookup: label effect type in the GWAS associations table.</strong> Each value in the effects column is now labelled OR, beta or beta (fine-mapped), with a note explaining that Open Targets rows are fine-mapped credible sets whose beta is a posterior estimate, not a GWAS Catalog effect size. Contributed by @sahandtkod-byte.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #850 · merged · 21 November 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🥦</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>nutrigx: say in the Privacy section that outputs contain genotypes.</strong> The Privacy section claimed outputs were genotype-free, but <code style="font-size:0.85rem;">nutrigx_report.md</code> prints a per-SNP Genotype column and <code style="font-size:0.85rem;">result.json</code> carries a genotype field for every SNP; the section now says so and tells readers to treat the outputs as genetic data when sharing. Contributed by @sahandtkod-byte.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #852 · merged · 21 November 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🔤</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>fix(common): read skills/catalog.json as UTF-8 in demo_runner.</strong> <code style="font-size:0.85rem;">demo_runner</code> read the catalog with the locale encoding instead of UTF-8, so every demo on a non-UTF-8 locale (Windows cp1252, or an ASCII locale on Linux/macOS) failed before it started; the read is now explicit UTF-8, matching the catalog generator. Contributed by @mooreneural.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #892 · merged · 21 November 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🗂️</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>fix: keep the checkout path out of demo outputs across 7 skills.</strong> A run of 7 PRs stop a skill's demo report from recording the generating machine's absolute checkout path, each adding a test that fails if any demo output contains it: affinity-proteomics, bigquery-public, marker-dominance-mapper, phylogenetics-builder, illumina-bridge, hla-typing and clinical-variant-reporter. Contributed by @camlloyd.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #870 and 6 more · merged · 20 November 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🌐</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>feat(site): fill the homepage's live numbers at deploy.</strong> The homepage's live numbers (stars, forks, contributors, skills, demo, CLI and test counts) are now filled at every deploy by <code style="font-size:0.85rem;">scripts/build_site.py</code> instead of by daily hand-maintained site-stats PRs; benchmark scores and this community feed stay hand-maintained, which is why this routine now limits itself to those two. Contributed by @camlloyd.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #844 · merged · 20 November 2026</div>
           </div>
         </div>
       </div>
