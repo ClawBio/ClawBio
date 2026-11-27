@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
+from hypothesis import example, given, strategies as st
 from inline_snapshot import snapshot
 
 from clawbio.common import demo_runner
@@ -104,6 +105,87 @@ class TestParseGenotypeFile:
         path = write_temp("# only comments\n")
         result = parse_genotype_file(path)
         assert result == {}
+
+    def test_skips_uncommented_header_line(self):
+        content = (
+            "rsid\tchromosome\tposition\tgenotype\n"
+            "rs1801133\t1\t11856378\tCT\n"
+        )
+        result = parse_genotype_file(write_temp(content))
+        assert result == {"rs1801133": "CT"}
+
+    def test_parses_ancestrydna_five_column_format(self):
+        content = (
+            "#AncestryDNA raw data download\n"
+            "rsid\tchromosome\tposition\tallele1\tallele2\n"
+            "rs1801133\t1\t11856378\tA\tA\n"
+            "rs1801131\t1\t11854476\tT\tG\n"
+            "rs1801394\t5\t7870973\t0\t0\n"
+            "rs4680\t22\t19951271\tA\t0\n"
+        )
+        genotypes = parse_genotype_file(write_temp(content))
+        assert genotypes == {"rs1801133": "AA", "rs1801131": "TG"}
+
+        result = analyse(genotypes)
+        assert result["gene_results"]["rs1801133"]["n_risk_alleles"] == 2
+        assert result["gene_results"]["rs1801133"]["status"] == "homozygous_risk"
+        assert result["gene_results"]["rs1801131"]["n_risk_alleles"] == 1
+        assert result["gene_results"]["rs1801131"]["status"] == "heterozygous"
+        assert result["summary"]["mthfr_compound_heterozygous"] is True
+        assert result["summary"]["mthfr_combined_activity"] == 12
+        assert result["gene_results"]["rs1801394"]["status"] == "not_assessed"
+        assert result["gene_results"]["rs1801394"]["activity_pct"] is None
+        assert result["gene_results"]["rs4680"]["status"] == "not_assessed"
+        assert result["gene_results"]["rs4680"]["activity_pct"] is None
+
+    @pytest.mark.parametrize("nocall", ["--", "-", "00", "0", "NC", "NA", "A-", "A0"])
+    def test_nocall_markers_are_omitted_and_not_assessed(self, nocall):
+        content = f"rs1801133\t1\t11856378\t{nocall}\n"
+        genotypes = parse_genotype_file(write_temp(content))
+        assert "rs1801133" not in genotypes
+        result = analyse(genotypes)
+        assert result["gene_results"]["rs1801133"]["status"] == "not_assessed"
+        assert result["gene_results"]["rs1801133"]["activity_pct"] is None
+        assert result["summary"]["net_methylation_capacity"] is None
+
+    @given(
+        a1=st.sampled_from(["A", "C", "G", "T"]),
+        a2=st.sampled_from(["A", "C", "G", "T"]),
+    )
+    @example(a1="A", a2="A")
+    @example(a1="G", a2="A")
+    def test_ancestry_five_column_matches_23andme_four_column(self, a1, a2):
+        with tempfile.TemporaryDirectory() as td:
+            p_23 = Path(td) / "23andme.txt"
+            p_anc = Path(td) / "ancestry.txt"
+            p_23.write_text(f"rs1801133\t1\t11856378\t{a1}{a2}\n", encoding="utf-8")
+            p_anc.write_text(
+                f"rsid\tchromosome\tposition\tallele1\tallele2\n"
+                f"rs1801133\t1\t11856378\t{a1}\t{a2}\n",
+                encoding="utf-8",
+            )
+            g_23 = parse_genotype_file(p_23)
+            g_anc = parse_genotype_file(p_anc)
+            assert g_anc == g_23 == {"rs1801133": a1 + a2}
+            assert (
+                analyse(g_anc)["gene_results"]["rs1801133"]["n_risk_alleles"]
+                == analyse(g_23)["gene_results"]["rs1801133"]["n_risk_alleles"]
+            )
+
+    @given(
+        token=st.sampled_from(["--", "-", "00", "0", "NC", "NA", ".", "A-", "A0", "-T", "0G"])
+    )
+    @example(token="--")
+    @example(token="00")
+    def test_nocall_property_never_yields_wildtype(self, token):
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "nocall.txt"
+            p.write_text(f"rs1801133\t1\t11856378\t{token}\n", encoding="utf-8")
+            genotypes = parse_genotype_file(p)
+            assert genotypes == {}
+            res = analyse(genotypes)
+            assert res["gene_results"]["rs1801133"]["status"] == "not_assessed"
+            assert res["gene_results"]["rs1801133"]["activity_pct"] is None
 
 
 # ---------------------------------------------------------------------------

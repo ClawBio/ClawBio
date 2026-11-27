@@ -184,13 +184,18 @@ CLINICIAN_REVIEW_HEADER = (
 # Parsing
 # ---------------------------------------------------------------------------
 
+_VALID_ALLELES = frozenset("ACGTID")
+
+
 def parse_genotype_file(path: Path) -> dict[str, str]:
     """
     Parse a 23andMe / AncestryDNA / ADNTRO raw genotype file.
     Returns a dict mapping rsid -> genotype string (e.g. 'AG', 'TT').
+    No-call markers (e.g. '--', '00') are omitted so downstream analysis
+    reports them as not_assessed rather than wildtype (Safety Rule 6).
     """
     genotypes: dict[str, str] = {}
-    with path.open() as fh:
+    with path.open(encoding="utf-8-sig") as fh:
         for line in fh:
             line = line.strip()
             if not line or line.startswith("#"):
@@ -199,9 +204,16 @@ def parse_genotype_file(path: Path) -> dict[str, str]:
             if len(parts) < 4:
                 continue
             rsid = parts[0].strip()
-            genotype = parts[3].strip().upper()
-            if rsid.startswith("rs"):
-                genotypes[rsid] = genotype
+            if not (rsid.startswith("rs") and rsid[2:].isdigit()):
+                continue
+            col4 = parts[3].strip().upper()
+            if len(parts) >= 5 and len(col4) <= 1 and len(parts[4].strip()) <= 1:
+                genotype = col4 + parts[4].strip().upper()
+            else:
+                genotype = col4
+            if not (1 <= len(genotype) <= 2 and set(genotype) <= _VALID_ALLELES):
+                continue
+            genotypes[rsid] = genotype
     return genotypes
 
 
