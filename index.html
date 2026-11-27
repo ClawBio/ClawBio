@@ -353,6 +353,20 @@ clawbio run pharmgx --demo</pre>
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
           <span style="font-size:1.5rem;flex-shrink:0;">🏷️</span>
           <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>docs(equity-scorer): add metadata tags and regenerate catalog.</strong> Added four discovery tags (genomics, population-genetics, ancestry, vcf) to equity-scorer's SKILL.md frontmatter and regenerated <code style="font-size:0.85rem;">catalog.json</code>, <code style="font-size:0.85rem;">directory.json</code> and <code style="font-size:0.85rem;">skills.html</code> so the skill's keyword badges render. Contributed by @RajvanshSingh4.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #955 · merged · 26 November 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">🏷️</span>
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;"><strong>docs(bio-orchestrator): add discovery tags.</strong> Added four discovery tags (bioinformatics, genomics, workflows, reproducibility) to bio-orchestrator's SKILL.md frontmatter and regenerated the catalog and skills directory so the card shows keyword badges, with routing logic unchanged. Contributed by @n1dhruv.</div>
+            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #937 · merged · 26 November 2026</div>
+          </div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
+          <span style="font-size:1.5rem;flex-shrink:0;">🏷️</span>
+          <div>
             <div style="font-weight:600;font-size:0.95rem;"><strong>docs(ukb-navigator): add metadata tags and regenerate catalog.</strong> Added four metadata tags (biobank, genomics, data-retrieval, literature) to <code style="font-size:0.85rem;">skills/ukb-navigator/SKILL.md</code> and regenerated <code style="font-size:0.85rem;">catalog.json</code>, <code style="font-size:0.85rem;">skills.html</code> and <code style="font-size:0.85rem;">directory.json</code> so the skill's keyword badges render. Contributed by @avaldivieso-meraki.</div>
             <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #934 · merged · 25 November 2026</div>
           </div>
@@ -404,20 +418,6 @@ clawbio run pharmgx --demo</pre>
           <div>
             <div style="font-weight:600;font-size:0.95rem;"><strong>test: snapshot demo outputs inline across 13 skills.</strong> A run of 13 PRs each add a <code style="font-size:0.85rem;">demo_snapshot</code> test pinning a skill's committed demo outputs, so a change that moves a result or a number fails CI: prs-applicability-gate, ena-fetch, geo-fetch, pride-fetch, lit-synthesizer, arrayexpress-fetch, biostudies-fetch, busco-assessor, crispr-screen-triage, deepspot-m, drug-repurposing-screen, galaxy-bridge and bioqc-mcp. Contributed by @camlloyd.</div>
             <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #823 and 12 more · merged · 19–21 November 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🛠️</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>fix(reproducibility): stop writing the checkout path into commands.sh.</strong> <code style="font-size:0.85rem;">write_portable_commands_sh</code> wrote the generating machine's checkout path into every <code style="font-size:0.85rem;">commands.sh</code> as the default <code style="font-size:0.85rem;">CLAWBIO_ROOT</code>, so a replay bundle only worked on the machine that produced it; it now finds the checkout from the bundle's own location or the current directory, or exits with a clear hint when run outside one. Contributed by @camlloyd.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #901 · merged · 21 November 2026</div>
-          </div>
-        </div>
-        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
-          <span style="font-size:1.5rem;flex-shrink:0;">🔁</span>
-          <div>
-            <div style="font-weight:600;font-size:0.95rem;"><strong>fix: move 5 skills onto the shared reproducibility writers.</strong> claw-metagenomics, rare-disease-rnaseq, seq-wrangler, eqtl-catalogue-region-fetch and locuscompare-region-render each hand-rolled their own reproducibility bundle; all five now use <code style="font-size:0.85rem;">clawbio.common.reproducibility</code>, fixing unquoted replay paths and checksums that could not resolve from the output directory along the way. Contributed by @camlloyd.</div>
-            <div style="color:var(--text-muted);font-size:0.85rem;margin-top:0.15rem;">PR #895 and 4 more · merged · 20–21 November 2026</div>
           </div>
         </div>
       </div>
