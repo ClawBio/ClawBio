@@ -121,6 +121,9 @@ robotary = [
     "uvicorn>=0.54.0",
 ]
 
+# The multiqc CLI that skills/multiqc-reporter shells out to, so its demo and
+# real-MultiQC test run under `uv sync --all-extras`.
+multiqc-reporter = ["multiqc>=1.20"]
 # PDF rendering in prs-abstain; the skill degrades to markdown-only without them.
 prs-abstain = [
     "reportlab>=5.1.0,<6",
