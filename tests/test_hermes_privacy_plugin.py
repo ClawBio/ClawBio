@@ -655,3 +655,58 @@ def test_an_older_policy_without_the_checks_still_blocks(monkeypatch, missing):
     monkeypatch.delattr(plugin._policy(), missing)
     tool, args = ("read_file", {"path": "/etc/hosts"}) if missing == "check_path" else ("terminal", {"command": "ls"})
     assert _blocked(tool, **args)
+
+
+@pytest.fixture
+def unconfigured_symlinked_checkout(tmp_path, monkeypatch):
+    """A supported symlink install without a process or routed-profile setting."""
+    link = tmp_path / "plugins" / "clawbio-privacy"
+    link.parent.mkdir()
+    link.symlink_to(_PLUGIN.parent, target_is_directory=True)
+    monkeypatch.setattr(plugin, "__file__", str(link / "__init__.py"))
+    monkeypatch.setattr(plugin, "_hermes_home", lambda: None)
+    monkeypatch.delenv("CLAWBIO_DIR", raising=False)
+    return _PLUGIN.resolve().parents[3]
+
+
+@_SHARED_FIXTURES
+@given(parts=st.lists(_segment, min_size=1, max_size=4))
+@example(parts=["sample", "report.md"])
+def test_symlinked_checkout_without_config_protects_every_output(unconfigured_symlinked_checkout, parts):
+    root = unconfigured_symlinked_checkout
+    target = str(root / "output" / Path(*parts))
+    assert _blocked("read_file", path=target)
+    assert _blocked("terminal", command=f"cat {target}")
+    assert _blocked("connectors__execute", calls={"attachment": target})
+
+
+@pytest.mark.parametrize("level", [0, 1])
+def test_symlinked_checkout_without_config_protects_ancestors(unconfigured_symlinked_checkout, level):
+    root = unconfigured_symlinked_checkout
+    target = root if level == 0 else root.parent
+    assert _blocked("search_files", path=str(target))
+    assert _blocked("terminal", command=f"grep -r CYP2D6 {target}")
+
+
+def test_symlinked_checkout_without_config_uses_absolute_hints(unconfigured_symlinked_checkout, tmp_path):
+    root = unconfigured_symlinked_checkout
+    assert plugin._clawbio_dirs() == [str(root)]
+    path = _upload(tmp_path, "sample.vcf", VCF)
+    note = plugin.on_pre_gateway_dispatch(event=_inlined(path, "sample.vcf", VCF))["text"]
+    executable = f"{root}/.venv/bin/python {root}/clawbio.py"
+    assert f"{executable} run <skill>" in note
+    refusal = plugin.on_pre_tool_call(tool_name="read_file", args={"path": str(path)})["message"]
+    assert f"{executable} run <skill>" in refusal
+    assert not _blocked("terminal", command=f"{executable} run pharmgx --input {path} --sealed")
+
+
+def test_symlinked_checkout_keeps_explicit_configuration_first(unconfigured_symlinked_checkout, tmp_path, monkeypatch):
+    root = unconfigured_symlinked_checkout
+    profile = tmp_path / "profile"
+    profile.mkdir()
+    profile_root = str(tmp_path / "profile-checkout")
+    process_root = str(tmp_path / "process-checkout")
+    (profile / ".env").write_text(f"CLAWBIO_DIR={profile_root}\n")
+    monkeypatch.setattr(plugin, "_hermes_home", lambda: profile)
+    monkeypatch.setenv("CLAWBIO_DIR", process_root)
+    assert plugin._clawbio_dirs() == [profile_root, process_root, str(root)]

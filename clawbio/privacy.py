@@ -61,7 +61,7 @@ SEALED_RUN_FLAGS = frozenset({"--input", "--demo", "--profile", "--sealed"})
 
 _GENOMIC_EXT_RE = re.compile(r"\S+?(" + "|".join(re.escape(e) for e in GENOMIC_EXTENSIONS) + r")\b", re.I)
 _RSID_RE = re.compile(r"\brs\d{3,}\b")
-_SEALED_RUN_RE = re.compile(r"^\s*(uv run\s+)?\S*python3?\s+\S*clawbio\.py\s+run\s+[^;&|<>`$\n]*--sealed[^;&|<>`$\n]*$")
+_SHELL_META_RE = re.compile(r"[#;&|<>`$\r\n]")
 # A bare `~` is a path (`grep -r x ~`); a lone `/` or `//` is not, since prose and jq's `//` use them.
 # shortcut: `find / -name report.md` gets past it; a sandbox does not. Upgrade if the host exposes the cwd and argv.
 _PATHISH_RE = re.compile(r"~[^\s'\";|&<>()]*|/[^/\s'\";|&<>()][^\s'\";|&<>()]*")
@@ -77,7 +77,7 @@ _RELATIVE_OUTPUT_RE = re.compile(r"(?<![\w/~.-])(?:\./)?output/|\b[a-z][a-z0-9_-
 
 def is_genomic_text(text: str) -> bool:
     """VCF or raw-data header on any line, or three or more distinct rsIDs."""
-    text = text.lstrip("﻿")  # Windows/Excel exports start with a byte-order mark
+    text = text.lstrip("\ufeff")  # Windows/Excel exports start with a byte-order mark
     return bool(_GENOMIC_HEADER_RE.search(text)) or len(set(_RSID_RE.findall(text))) >= 3
 
 
@@ -114,11 +114,18 @@ def _paths(command: str) -> list[str]:
 
 def is_sealed_run(command: str) -> bool:
     """A single `clawbio.py run` command, no shell chaining, with --sealed as its own argument."""
-    if not _SEALED_RUN_RE.match(command):
+    # Reject shell operators across the whole command, including its executable
+    # and script prefixes. shlex alone is not a shell parser.
+    if _SHELL_META_RE.search(command):
         return False
     try:
         args = shlex.split(command)
     except ValueError:  # unbalanced quotes
+        return False
+    if args[:2] == ["uv", "run"]:
+        args = args[2:]
+    if (len(args) < 5 or Path(args[0]).name not in {"python", "python3"}
+            or Path(args[1]).name != "clawbio.py" or args[2] != "run"):
         return False
     # An allowlist, so it fails closed: `--` (argparse stops reading options, leaving --sealed unparsed),
     # any prefix of --output (report lands outside output/), and --upload-sample (sends reads to Flow) are all refused,
@@ -158,11 +165,16 @@ def _command_touches_output(command: str, dirs: list[str]) -> bool:
 def _clawbio(dirs: list[str]) -> str:
     """The first of ``dirs`` is a ClawBio checkout with its own .venv."""
     d = next(iter(dirs), None)
-    return f"{d}/.venv/bin/python {d}/clawbio.py" if d else "python clawbio.py"
+    if not d:
+        return "python clawbio.py"
+    checkout = Path(d).expanduser()
+    python = shlex.quote(str(checkout / ".venv" / "bin" / "python"))
+    script = shlex.quote(str(checkout / "clawbio.py"))
+    return f"{python} {script}"
 
 
 def _sealed_command(path: str, dirs: list[str]) -> str:
-    return f"{_clawbio(dirs)} run <skill> --input {path} --sealed"
+    return f"{_clawbio(dirs)} run <skill> --input {shlex.quote(str(Path(path).expanduser()))} --sealed"
 
 
 def _file_kind(content: str) -> str:

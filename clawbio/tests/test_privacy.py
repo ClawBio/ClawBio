@@ -323,3 +323,98 @@ def test_a_genomic_member_is_found_wherever_it_sits_in_a_zip(tmp_path, position,
         for name, body in members:
             z.writestr(name, body)
     assert privacy.is_genomic_path(str(path))
+
+
+@pytest.mark.parametrize("command", [
+    "cat</opt/clawbio/output/report.md;python clawbio.py run pharmgx --demo --sealed",
+    "cat</opt/clawbio/output/report.md|python clawbio.py run pharmgx --demo --sealed",
+    "python /tmp/clawbio.py;python /opt/clawbio/clawbio.py run pharmgx --input /tmp/s.vcf --sealed",
+    "python\nclawbio.py run pharmgx --input /tmp/s.vcf --sealed",
+    "\npython clawbio.py run pharmgx --input /tmp/s.vcf --sealed",
+    "/tmp/fakepython /opt/clawbio/clawbio.py run pharmgx --input /tmp/s.vcf --sealed",
+    "python /tmp/notclawbio.py run pharmgx --input /tmp/s.vcf --sealed",
+    "python clawbio.py run pharmgx --input /tmp/s.vcf # --sealed",
+    "python clawbio.py run pharmgx --input /tmp/s.vcf --sealed#ignored",
+])
+def test_shell_prefixes_and_lookalikes_are_not_sealed_runs(command):
+    # These are policy inputs only; none of the shell strings is executed.
+    assert not privacy.is_sealed_run(command)
+    assert privacy.check_command(command, ["/opt/clawbio"])
+
+
+@given(
+    character=st.sampled_from("#;|&<>$\r\n" + chr(96)),
+    position=st.integers(min_value=0, max_value=len(_SEALED)),
+)
+@example(character=";", position=0)
+@example(character="\n", position=0)
+def test_shell_metacharacters_anywhere_cannot_make_a_sealed_run(character, position):
+    command = _SEALED[:position] + character + _SEALED[position:]
+    assert not privacy.is_sealed_run(command)
+
+
+@pytest.mark.parametrize("prefix", [
+    "python clawbio.py",
+    "python3 clawbio.py",
+    "/opt/clawbio/.venv/bin/python /opt/clawbio/clawbio.py",
+    "uv run python clawbio.py",
+    "'/opt/my checkout/.venv/bin/python' '/opt/my checkout/clawbio.py'",
+])
+def test_exact_sealed_entrypoints_accept_quoted_paths(prefix):
+    assert privacy.is_sealed_run(f"{prefix} run pharmgx --input '/tmp/my sample.vcf' --sealed")
+
+
+def test_generated_sealed_command_quotes_each_path(tmp_path):
+    import shlex
+
+    checkout = tmp_path / "my checkout"
+    input_path = tmp_path / "my sample.vcf"
+    command = privacy._sealed_command(str(input_path), [str(checkout)]).replace("<skill>", "pharmgx")
+    assert shlex.split(command) == [
+        str(checkout / ".venv" / "bin" / "python"),
+        str(checkout / "clawbio.py"),
+        "run", "pharmgx", "--input", str(input_path), "--sealed",
+    ]
+    assert privacy.is_sealed_run(command)
+
+
+@pytest.mark.parametrize("sealed", [True, False])
+def test_cli_sealed_run_withholds_runner_progress(monkeypatch, capsys, sealed):
+    import sys
+    from clawbio import cli
+
+    def noisy_run(**kwargs):
+        print("SYNTHETIC_PROGRESS_CANARY")
+        print("SYNTHETIC_STDERR_CANARY", file=sys.stderr)
+        return _result()
+
+    monkeypatch.setattr(cli, "run_skill", noisy_run)
+    argv = ["clawbio.py", "run", "pharmgx", "--demo"]
+    if sealed:
+        argv.append("--sealed")
+    monkeypatch.setattr(sys, "argv", argv)
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main()
+    assert exit_info.value.code == 0
+    captured = capsys.readouterr()
+    if sealed:
+        assert json.loads(captured.out)["sealed"] is True
+        assert "SYNTHETIC_PROGRESS_CANARY" not in captured.out
+        assert captured.err == ""
+    else:
+        assert "SYNTHETIC_PROGRESS_CANARY" in captured.out
+        assert "SYNTHETIC_STDERR_CANARY" in captured.err
+
+
+def test_generated_sealed_command_expands_home_before_quoting():
+    import shlex
+
+    checkout = Path("~/my checkout").expanduser()
+    input_path = Path("~/my sample.vcf").expanduser()
+    command = privacy._sealed_command("~/my sample.vcf", ["~/my checkout"]).replace("<skill>", "pharmgx")
+    assert shlex.split(command) == [
+        str(checkout / ".venv" / "bin" / "python"),
+        str(checkout / "clawbio.py"),
+        "run", "pharmgx", "--input", str(input_path), "--sealed",
+    ]
+    assert privacy.is_sealed_run(command)

@@ -68,12 +68,17 @@ def _env_file_value(path: Path, key: str) -> str | None:
 
 
 def _clawbio_dirs() -> list[str]:
-    """CLAWBIO_DIR from the routed profile's .env first, then the process env.
+    """Profile and process CLAWBIO_DIR first, then this plugin's checkout.
 
     A multiplexed gateway never merges a profile's .env into os.environ.
+    A symlinked install needs no CLAWBIO_DIR, but must protect the same checkout
+    from which _policy loads the policy and provide absolute run instructions.
     """
     home = _hermes_home()
     dirs = [_env_file_value(home / ".env", "CLAWBIO_DIR") if home else None, os.environ.get("CLAWBIO_DIR")]
+    here = Path(__file__).resolve().parents
+    if len(here) > 3 and (here[3] / "clawbio" / "privacy.py").is_file():
+        dirs.append(str(here[3]))
     return list(dict.fromkeys(d.rstrip("/") for d in dirs if d))
 
 

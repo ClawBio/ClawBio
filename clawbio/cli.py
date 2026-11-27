@@ -25,6 +25,7 @@ import re
 import subprocess
 import sys
 import time
+from contextlib import ExitStack, redirect_stderr, redirect_stdout
 from datetime import datetime
 from pathlib import Path
 
@@ -3125,15 +3126,22 @@ def main():
             # Summary-mode skills print instead of writing a report, and sealed output drops stdout.
             output_dir = str(DEFAULT_OUTPUT_ROOT / f"{args.skill}_{datetime.now():%Y%m%d_%H%M%S}")
 
-        result = run_skill(
-            skill_name=args.skill,
-            input_path=args.input_path,
-            output_dir=output_dir,
-            demo=args.demo,
-            extra_args=extra or None,
-            timeout=run_timeout,
-            profile_path=getattr(args, "profile_path", None),
-        )
+        with ExitStack() as stack:
+            if args.sealed:
+                # In-process runners can print progress before returning their
+                # result. Keep the sealed channel to one metadata JSON document.
+                sink = stack.enter_context(open(os.devnull, "w"))
+                stack.enter_context(redirect_stdout(sink))
+                stack.enter_context(redirect_stderr(sink))
+            result = run_skill(
+                skill_name=args.skill,
+                input_path=args.input_path,
+                output_dir=output_dir,
+                demo=args.demo,
+                extra_args=extra or None,
+                timeout=run_timeout,
+                profile_path=getattr(args, "profile_path", None),
+            )
 
         if args.sealed:
             from clawbio.privacy import seal_result
