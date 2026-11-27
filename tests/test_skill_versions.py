@@ -49,7 +49,7 @@ def skills_with_version_literals() -> dict[str, list[str]]:
         rel = path.relative_to(SKILLS)
         if "tests" in rel.parts:
             continue
-        for number, line in enumerate(path.read_text(errors="ignore").splitlines(), 1):
+        for number, line in enumerate(path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
             if not line.lstrip().startswith("#") and LITERAL.search(line):
                 found.setdefault(rel.parts[0], []).append(f"skills/{rel}:{number}")
     return found

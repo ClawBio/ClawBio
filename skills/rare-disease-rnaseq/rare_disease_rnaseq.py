@@ -10,8 +10,8 @@ disease-gene panel.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
+import shlex
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,12 +26,22 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from clawbio.common.checksums import sha256_file
 from clawbio.common.report import write_result_json
+from clawbio.common.reproducibility import (
+    ReproCommand,
+    ReproPath,
+    write_checksums,
+    write_environment_yml,
+    write_portable_commands_sh,
+)
+from clawbio.common.textio import write_text_lf_atomic
 
 
 SKILL = "rare-disease-rnaseq"
 VERSION = "0.1.0"
 DEFAULT_Z_THRESHOLD = 3.0
+DEFAULT_SEED = 42
 DEFAULT_PANEL = Path(__file__).parent / "data" / "disease_panel.csv"
 
 DISCLAIMER = (
@@ -41,7 +51,7 @@ DISCLAIMER = (
 )
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--counts", type=Path, help="Counts matrix (csv/tsv): genes x samples")
     p.add_argument("--cases", type=Path, help="File with one case sample ID per line")
@@ -53,8 +63,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--output", type=Path, default=Path("rdoutlier_report"))
     p.add_argument("--demo", action="store_true",
                    help="Generate synthetic data and run end-to-end")
-    p.add_argument("--seed", type=int, default=42)
-    return p.parse_args()
+    p.add_argument("--seed", type=int, default=DEFAULT_SEED)
+    return p.parse_args(argv)
 
 
 def _sep_for(path: Path) -> str:
@@ -272,29 +282,59 @@ def write_report(
     (output_dir / "report.md").write_text("\n".join(lines))
 
 
-def write_reproducibility(output_dir: Path, args: argparse.Namespace,
-                          input_checksum: str) -> None:
+def _quoted_path(path: Path) -> str:
+    """A path for commands.sh: under $CLAWBIO_ROOT when inside the checkout, else absolute."""
+    path = Path(path).expanduser().resolve()
+    if path.is_relative_to(PROJECT_ROOT):
+        return f'"$CLAWBIO_ROOT"/{shlex.quote(path.relative_to(PROJECT_ROOT).as_posix())}'
+    return shlex.quote(str(path))
+
+
+def write_reproducibility(output_dir: Path, args: argparse.Namespace, demo: bool) -> None:
+    """Write reproducibility/ with the shared helpers once every other output exists.
+
+    inputs.json holds the SHA-256 of each input that lives outside the output
+    directory (the panel, and for a real run the counts, cases and controls);
+    checksums.sha256 covers everything the run wrote, relative to output_dir.
+    """
+    output_dir = Path(output_dir).resolve()
     repro = output_dir / "reproducibility"
+    outputs = sorted(p for p in output_dir.rglob("*") if p.is_file() and repro not in p.parents)
     repro.mkdir(parents=True, exist_ok=True)
-    cmd = " ".join([sys.executable, "rare_disease_rnaseq.py"] + sys.argv[1:])
-    (repro / "commands.sh").write_text(f"#!/usr/bin/env bash\nset -euo pipefail\n{cmd}\n")
-    (repro / "environment.yml").write_text(
-        "name: clawbio-rdoutlier\n"
-        "dependencies:\n"
-        "  - python>=3.10\n"
-        "  - pandas\n"
-        "  - numpy\n"
-        "  - matplotlib\n"
+
+    sources = {} if demo else {"counts": args.counts, "cases": args.cases, "controls": args.controls}
+    sources["panel"] = args.panel
+    inputs = {name: {"file": Path(path).name, "sha256": sha256_file(Path(path))}
+              for name, path in sources.items()}
+    inputs_path = repro / "inputs.json"
+    write_text_lf_atomic(inputs_path, json.dumps(inputs, indent=2) + "\n")
+
+    replay: list[str | ReproPath] = ["--demo"] if demo else []
+    if demo and args.seed != DEFAULT_SEED:
+        replay += ["--seed", str(args.seed)]
+    if not demo:
+        replay += ["--counts", _quoted_path(args.counts), "--cases", _quoted_path(args.cases),
+                   "--controls", _quoted_path(args.controls)]
+    if Path(args.panel).resolve() != DEFAULT_PANEL.resolve():
+        replay += ["--panel", _quoted_path(args.panel)]
+    if args.z_threshold != DEFAULT_Z_THRESHOLD:
+        replay += ["--z-threshold", repr(args.z_threshold)]
+    replay += ["--output", ReproPath(output_dir, anchor="output_dir")]
+
+    commands = write_portable_commands_sh(
+        output_dir,
+        ReproCommand(
+            script_path=Path("skills/rare-disease-rnaseq/rare_disease_rnaseq.py"),
+            args=replay,
+            comment="Reproduce this rare-disease-rnaseq run",
+        ),
+        repo_root=PROJECT_ROOT,
     )
-    (repro / "checksums.sha256").write_text(f"{input_checksum}  counts_input\n")
-
-
-def sha256_of(path: Path) -> str:
-    h = hashlib.sha256()
-    with path.open("rb") as fh:
-        for chunk in iter(lambda: fh.read(65536), b""):
-            h.update(chunk)
-    return h.hexdigest()
+    environment = write_environment_yml(
+        output_dir, env_name="clawbio-rare-disease-rnaseq", pip_deps=[],
+        conda_deps=["pandas", "numpy", "matplotlib"],
+    )
+    write_checksums([*outputs, inputs_path, commands, environment], output_dir, anchor=output_dir)
 
 
 def main() -> int:
@@ -338,8 +378,7 @@ def main() -> int:
                  n_genes_screened=int((stats["mad"] > 0).sum()),
                  z_threshold=args.z_threshold)
 
-    checksum = sha256_of(counts_path)
-    write_reproducibility(output_dir, args, checksum)
+    checksum = sha256_file(counts_path)
 
     panel_outliers = outliers[outliers["in_panel"]] if not outliers.empty else outliers
     summary = {
@@ -354,6 +393,7 @@ def main() -> int:
     write_result_json(output_dir, SKILL, VERSION, summary,
                       data={"outliers": outliers.to_dict(orient="records")},
                       input_checksum=checksum)
+    write_reproducibility(output_dir, args, demo=args.demo)
 
     print(json.dumps(summary, indent=2))
     print(f"\nReport: {output_dir / 'report.md'}")

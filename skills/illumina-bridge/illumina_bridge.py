@@ -40,6 +40,15 @@ DEMO_BUNDLE_DIR = SKILL_DIR / "demo_bundle"
 DEFAULT_OUTPUT_DIR = "illumina_import"
 
 
+def _in_bundle(path, bundle_dir) -> str:
+    """A bundle file's path relative to the bundle, so reports never record the user's folders."""
+    path, bundle_dir = Path(path), Path(bundle_dir)
+    try:
+        return path.resolve().relative_to(bundle_dir.resolve()).as_posix()
+    except ValueError:
+        return path.name
+
+
 def ensure_output_dir_ready(output_dir: Path) -> None:
     """Guard against silently overwriting a populated output directory."""
 
@@ -107,7 +116,7 @@ def build_downstream_routing_hints(
         {
             "skill": "equity",
             "reason": cohort_reason,
-            "example_command": f"python clawbio.py run equity --input {shlex.quote(str(vcf_path))} --output <dir>",
+            "example_command": f"python clawbio.py run equity --input <bundle>/{shlex.quote(Path(vcf_path).name)} --output <dir>",
         },
         {
             "skill": "gwas",
@@ -140,16 +149,16 @@ def build_summary_and_data(
         "sample_count": sample_summary["sample_count"],
         "metadata_status": metadata_result.status,
         "has_qc_metrics": True,
-        "bundle_dir": str(bundle.bundle_dir),
+        "bundle_dir": bundle.bundle_dir.name,
     }
     data = {
         "platform": "illumina",
         "source_type": "dragen_export",
         "artifacts": {
-            "bundle_dir": str(bundle.bundle_dir),
-            "vcf": str(bundle.vcf_path),
-            "qc_metrics": str(bundle.qc_path),
-            "sample_sheet": str(bundle.sample_sheet_path),
+            "bundle_dir": bundle.bundle_dir.name,
+            "vcf": _in_bundle(bundle.vcf_path, bundle.bundle_dir),
+            "qc_metrics": _in_bundle(bundle.qc_path, bundle.bundle_dir),
+            "sample_sheet": _in_bundle(bundle.sample_sheet_path, bundle.bundle_dir),
         },
         "samples": sample_rows,
         "sample_summary": sample_summary,
@@ -340,16 +349,16 @@ def write_markdown_report(
         [
             "## Import Summary",
             "",
-            f"- **Bundle directory**: `{bundle.bundle_dir}`",
+            f"- **Bundle directory**: `{bundle.bundle_dir.name}`",
             f"- **Sample count**: {sample_summary['sample_count']}",
             f"- **Sample projects**: {', '.join(sample_summary['sample_projects']) or 'None'}",
             f"- **Sample types**: {', '.join(sample_summary.get('sample_types', [])) or 'Unknown'}",
             "",
             "## Discovered Artifacts",
             "",
-            f"- **VCF**: `{bundle.vcf_path}`",
-            f"- **SampleSheet**: `{bundle.sample_sheet_path}`",
-            f"- **QC metrics**: `{bundle.qc_path}`",
+            f"- **VCF**: `{_in_bundle(bundle.vcf_path, bundle.bundle_dir)}`",
+            f"- **SampleSheet**: `{_in_bundle(bundle.sample_sheet_path, bundle.bundle_dir)}`",
+            f"- **QC metrics**: `{_in_bundle(bundle.qc_path, bundle.bundle_dir)}`",
             "",
             "## Sample Manifest",
             "",

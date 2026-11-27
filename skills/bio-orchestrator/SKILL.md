@@ -5,6 +5,11 @@ description: Meta-agent that routes bioinformatics requests to specialised sub-s
 license: MIT
 metadata:
   version: 0.1.0
+  tags:
+  - bioinformatics
+  - genomics
+  - workflows
+  - reproducibility
   openclaw:
     requires:
       bins:

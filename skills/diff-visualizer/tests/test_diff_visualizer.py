@@ -12,6 +12,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from inline_snapshot import snapshot
+
+from clawbio.common import demo_runner
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 SCRIPT_PATH = SKILL_DIR / "diff_visualizer.py"
@@ -417,3 +420,241 @@ def test_orchestrator_routes_visualization_queries_without_breaking_analysis_rou
     assert orchestrator.detect_skill_from_query("make a marker heatmap for these markers") == "diff-visualizer"
     assert orchestrator.detect_skill_from_query("run differential expression on this count matrix") == "rnaseq-de"
     assert orchestrator.detect_skill_from_query("find marker genes in this h5ad single-cell dataset") == "scrna-orchestrator"
+
+
+# ── Demo output snapshot ──────────────────────────────────────────────────────
+# Fails when a code change alters any demo number. If the change is intended,
+# run `pytest skills/diff-visualizer/tests --inline-snapshot=fix`; it rewrites the
+# snapshot() values below, and the PR diff shows which numbers moved.
+
+@pytest.mark.demo_snapshot
+def test_demo_output_matches_snapshot(tmp_path):
+    assert demo_runner.demo_outputs("diff-visualizer", tmp_path) == snapshot({'report.md': """\
+# ClawBio Differential Visualisation Report
+
+**Date**: <TIMESTAMP> UTC
+**Skill**: diffviz
+**Version**: \n\
+**Mode**: bulk
+**Source kind**: demo-bulk
+**Input rows**: 10
+**Significant rows**: 6
+**Top genes requested**: 25
+**Label count**: 10
+**Adjusted p-value threshold**: 0.05
+**Absolute log fold-change threshold**: 1.0
+**Bulk display filter**: baseMean > 10
+**Bulk display rows**: 10
+**Input files**:
+- `demo_bulk_de_results.csv`: `f0ebd9714af46beed40afdea8b9088701724d20bf2072263271252361d5c89ae`
+- `demo_bulk_counts.csv`: `0b9f012a99b26a41ee7abb40cd571c1a75d1f919902dd62851dc886720a2d2f4`
+- `demo_bulk_metadata.csv`: `5e201aeb0b839a5ebaf2e5787fae6714b46e3e3cd2bf1f6a3a6dd715e067195d`
+
+---
+## Summary
+
+- Mode: **bulk**
+- Source kind: **demo-bulk**
+- Input rows processed: **10**
+- Significant rows: **6**
+- Figures generated: **7**
+- Bulk display filter: **baseMean > 10** (10 / 10 rows retained)
+- Enhanced inputs used: **counts, metadata**
+
+## Top Features
+
+| gene | log2FoldChange | padj |
+|---|---|---|
+| GeneA | 2.4 | 0.001 |
+| GeneB | -2.15 | 0.0018 |
+| GeneC | 1.75 | 0.006 |
+| GeneD | -1.6 | 0.01 |
+| GeneE | 1.2 | 0.02 |
+| GeneF | -1.05 | 0.04 |
+
+## Figures
+
+### Bulk Volcano Plot
+
+![Bulk Volcano Plot](figures/volcano.png)
+
+### Top Bulk Genes
+
+![Top Bulk Genes](figures/top_genes_bar.png)
+
+### Effect Bubble Plot
+
+![Effect Bubble Plot](figures/effect_bubble.png)
+
+### Gene Metrics Panel
+
+![Gene Metrics Panel](figures/gene_metrics_heatmap.png)
+
+### Bulk MA Plot
+
+![Bulk MA Plot](figures/ma_plot.png)
+
+### Top Gene Heatmap
+
+![Top Gene Heatmap](figures/top_genes_heatmap.png)
+
+### Mean Expression Comparison
+
+![Mean Expression Comparison](figures/mean_expression_comparison.png)
+
+## Tables
+
+- `tables/top_genes.csv`
+- `tables/significant_genes.csv`
+
+## Notes
+
+- Using bundled bulk RNA differential expression demo table.
+- Bulk display filter applied: baseMean > 10 retained 10 of 10 rows.
+
+## Reproducibility
+
+- `reproducibility/commands.sh`
+- `reproducibility/environment.yml`
+- `reproducibility/checksums.sha256`
+---
+
+## Disclaimer
+
+*ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.*
+""", 'result.json': """\
+{
+  "skill": "diffviz",
+  "version": "0.1.0",
+  "completed_at": "<TIMESTAMP>",
+  "input_checksum": "sha256:9c31204b4e054fa205fe5868d962cfbb8c3693317ad49897bd6a1aefb2755d45",
+  "datasets": {},
+  "summary": {
+    "mode": "bulk",
+    "source_kind": "demo-bulk",
+    "n_input_rows": 10,
+    "n_significant": 6,
+    "bulk_display_rows": 10,
+    "bulk_display_filter": {
+      "rows_before": 10,
+      "rows_after": 10,
+      "applied": true,
+      "min_basemean": 10.0,
+      "rows_removed": 0
+    },
+    "within_cluster_comparisons": null,
+    "within_cluster_clusters": null,
+    "figures_generated": [
+      "volcano.png",
+      "top_genes_bar.png",
+      "effect_bubble.png",
+      "gene_metrics_heatmap.png",
+      "ma_plot.png",
+      "top_genes_heatmap.png",
+      "mean_expression_comparison.png"
+    ],
+    "enhanced_inputs_used": [
+      "counts",
+      "metadata"
+    ]
+  },
+  "data": {
+    "mode": "bulk",
+    "source_kind": "demo-bulk",
+    "input_files": [
+      "demo_bulk_de_results.csv",
+      "demo_bulk_counts.csv",
+      "demo_bulk_metadata.csv"
+    ],
+    "figures": [
+      "volcano.png",
+      "top_genes_bar.png",
+      "effect_bubble.png",
+      "gene_metrics_heatmap.png",
+      "ma_plot.png",
+      "top_genes_heatmap.png",
+      "mean_expression_comparison.png"
+    ],
+    "tables": [
+      "top_genes.csv",
+      "significant_genes.csv"
+    ],
+    "thresholds": {
+      "top_genes": 25,
+      "label_top": 10,
+      "padj_threshold": 0.05,
+      "lfc_threshold": 1.0
+    },
+    "notes": [
+      "Using bundled bulk RNA differential expression demo table.",
+      "Bulk display filter applied: baseMean > 10 retained 10 of 10 rows."
+    ],
+    "enhanced_inputs_used": [
+      "counts",
+      "metadata"
+    ],
+    "groupby_used": "",
+    "disclaimer": "ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.",
+    "top_preview": [
+      {
+        "gene": "GeneA",
+        "baseMean": 1520,
+        "log2FoldChange": 2.4,
+        "pvalue": 0.0002,
+        "padj": 0.001
+      },
+      {
+        "gene": "GeneB",
+        "baseMean": 1480,
+        "log2FoldChange": -2.15,
+        "pvalue": 0.0004,
+        "padj": 0.0018
+      },
+      {
+        "gene": "GeneC",
+        "baseMean": 1100,
+        "log2FoldChange": 1.75,
+        "pvalue": 0.0015,
+        "padj": 0.006
+      },
+      {
+        "gene": "GeneD",
+        "baseMean": 980,
+        "log2FoldChange": -1.6,
+        "pvalue": 0.003,
+        "padj": 0.01
+      },
+      {
+        "gene": "GeneE",
+        "baseMean": 760,
+        "log2FoldChange": 1.2,
+        "pvalue": 0.008,
+        "padj": 0.02
+      },
+      {
+        "gene": "GeneF",
+        "baseMean": 690,
+        "log2FoldChange": -1.05,
+        "pvalue": 0.02,
+        "padj": 0.04
+      }
+    ]
+  }
+}\
+""", 'tables/significant_genes.csv': """\
+gene,baseMean,log2FoldChange,pvalue,padj
+GeneA,1520,2.4,0.0002,0.001
+GeneB,1480,-2.15,0.0004,0.0018
+GeneC,1100,1.75,0.0015,0.006
+GeneD,980,-1.6,0.003,0.01
+GeneE,760,1.2,0.008,0.02
+GeneF,690,-1.05,0.02,0.04
+""", 'tables/top_genes.csv': """\
+gene,baseMean,log2FoldChange,pvalue,padj
+GeneA,1520,2.4,0.0002,0.001
+GeneB,1480,-2.15,0.0004,0.0018
+GeneC,1100,1.75,0.0015,0.006
+GeneD,980,-1.6,0.003,0.01
+GeneE,760,1.2,0.008,0.02
+GeneF,690,-1.05,0.02,0.04
+"""})

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from clawbio.common import demo_runner
+
 import hashlib
 import json
 import subprocess
@@ -613,3 +615,10 @@ def test_cli_subprocess_demo_round_trip(tmp_path: Path):
     )
     assert proc.returncode == 0, proc.stderr
     assert (output_dir / "report.md").exists()
+
+
+def test_demo_outputs_do_not_record_the_checkout_path(tmp_path):
+    """Reports are shared; an absolute path leaks the user's name and folder layout."""
+    outputs = demo_runner.demo_outputs("bigquery-public", tmp_path)
+    leaks = [name for name, text in outputs.items() if str(demo_runner.PROJECT_ROOT) in text]
+    assert leaks == []

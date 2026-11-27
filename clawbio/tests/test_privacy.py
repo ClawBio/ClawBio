@@ -89,10 +89,12 @@ def test_cli_sealed_run_prints_only_delivery_metadata(tmp_path):
 
 
 def test_unknown_skill_gets_a_fixed_hint_not_the_cli_error(monkeypatch, capsys):
-    # Live test: the model guessed `bio-orchestrator`, got success=false with no reason, and gave up.
+    # Use a synthetic name: bio-orchestrator is now a supported folder alias.
     from clawbio import cli
 
-    monkeypatch.setattr("sys.argv", ["clawbio.py", "run", "bio-orchestrator", "--demo", "--sealed"])
+    unknown = "nonexistent-privacy-test-skill"
+    assert cli.resolve_skill_name(unknown) not in cli.SKILLS
+    monkeypatch.setattr("sys.argv", ["clawbio.py", "run", unknown, "--demo", "--sealed"])
     with pytest.raises(SystemExit):
         cli.main()
     sealed = json.loads(capsys.readouterr().out)
@@ -343,7 +345,7 @@ def test_shell_prefixes_and_lookalikes_are_not_sealed_runs(command):
 
 
 @given(
-    character=st.sampled_from("#;|&<>$\r\n" + chr(96)),
+    character=st.sampled_from("#;|&<>`$\r\n"),
     position=st.integers(min_value=0, max_value=len(_SEALED)),
 )
 @example(character=";", position=0)

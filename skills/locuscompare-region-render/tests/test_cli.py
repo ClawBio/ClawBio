@@ -134,3 +134,43 @@ def test_format_provenance_prefix_combines_ot_and_gwas_lookup():
     assert "OT release: 26.03" in prefix
     assert "gwas-lookup chain: runs/sort1_vldl" in prefix
     assert prefix.endswith(" | "), "prefix must terminate with a separator for downstream join"
+
+
+# ----- Reproducibility bundle
+
+
+def test_run_writes_a_verifiable_reproducibility_bundle(tmp_path):
+    """Every successful run writes <output>/reproducibility/ via
+    clawbio.common.reproducibility, and checksums.sha256 verifies from <output>."""
+    _project_root = SKILL_DIR.parents[1]
+    if str(_project_root) not in sys.path:
+        sys.path.insert(0, str(_project_root))
+    from clawbio.common.checksums import sha256_file
+
+    out = tmp_path / "out"
+    config = SKILL_DIR / "examples" / "01_synthetic_demo" / "config.json"
+    assert cli.main(["--input", str(config), "--output", str(out)]) == 0
+
+    repro = out / "reproducibility"
+    for name in ("commands.sh", "environment.yml", "checksums.sha256"):
+        assert (repro / name).is_file(), name
+
+    lines = (repro / "checksums.sha256").read_text().splitlines()
+    labels = {line.split("  ", 1)[1] for line in lines}
+    assert {"1_500000_A_T_full_locuscompare.png", "manifest.yaml", "report.md"} <= labels
+    for line in lines:
+        digest, label = line.split("  ", 1)
+        assert not Path(label).is_absolute()
+        assert digest == sha256_file(out / label), label
+
+    commands = (repro / "commands.sh").read_text()
+    assert '"$CLAWBIO_ROOT/skills/locuscompare-region-render/cli.py"' in commands
+    assert '"$CLAWBIO_ROOT/skills/locuscompare-region-render/examples/01_synthetic_demo/config.json"' in commands
+    assert '"$OUTPUT_DIR"' in commands
+    assert str(out) not in commands
+
+
+def test_failed_run_writes_no_bundle(tmp_path):
+    out = tmp_path / "out"
+    assert cli.main(["--demo", "no_such_demo", "--output", str(out)]) == 2
+    assert not (out / "reproducibility").exists()

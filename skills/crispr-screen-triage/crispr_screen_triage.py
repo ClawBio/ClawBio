@@ -59,6 +59,12 @@ def _median(values: list[float]) -> float:
     return (ordered[middle - 1] + ordered[middle]) / 2.0
 
 
+def _priority(score: float, median_log2fc: float) -> str:
+    if score >= 1.35 and median_log2fc <= -1.0:
+        return "high"
+    return "medium" if score >= 0.75 else "watch"
+
+
 def triage_genes(rows: list[dict[str, str | float]]) -> dict:
     guides = []
     grouped: dict[str, list[dict[str, str | float | bool]]] = {}
@@ -78,7 +84,7 @@ def triage_genes(rows: list[dict[str, str | float]]) -> dict:
         druggability = sum(float(guide["druggability"]) for guide in gene_guides) / len(gene_guides)
         depletion = max(0.0, -median_log2fc)
         score = (0.55 * depletion) + (0.25 * druggability) + (0.20 * essentiality)
-        priority = "high" if score >= 1.35 and median_log2fc <= -1.0 else "medium" if score >= 0.75 else "watch"
+        priority = _priority(score, median_log2fc)
         genes.append(
             {
                 "gene": gene,
@@ -188,7 +194,7 @@ def write_outputs(result: dict, input_path: Path, output_dir: Path, demo: bool) 
     rows = [
         "# CRISPR Screen Triage Report",
         "",
-        f"**Input**: `{input_path}`",
+        f"**Input**: `{input_path.name}`",
         f"**Mode**: {'Synthetic demo data' if demo else 'User-provided local data'}",
         f"**Guides scored**: {result['summary']['guide_count']}",
         f"**Genes scored**: {result['summary']['gene_count']}",

@@ -13,6 +13,7 @@ import hashlib
 import io
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -22,6 +23,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import requests
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from clawbio.common.textio import write_text_lf  # noqa: E402
 
 
 DISCLAIMER = (
@@ -170,23 +177,28 @@ def assess_input_npx_scale(df: pd.DataFrame) -> list[str]:
 
 
 def _download_text(url: str, cache_name: str) -> str:
+    """Return the file at url as UTF-8 text, caching the exact bytes served.
+
+    Bytes, not text mode: on Windows, text mode wrote the organAging files' CRLF
+    line endings as CR CR LF, which read back as a blank line after every row.
+    """
     cached = _cache_dir() / cache_name
     checksum_file = _checksum_path(cached)
     if cached.exists():
         if checksum_file.exists():
-            expected = checksum_file.read_text().strip()
+            expected = checksum_file.read_text(encoding="utf-8").strip()
             actual = _sha256(cached)
             if expected and expected != actual:
                 raise RuntimeError(
                     f"Checksum mismatch for cached download {cached.name}: "
                     f"expected {expected}, got {actual}"
                 )
-        return cached.read_text()
+        return cached.read_bytes().decode("utf-8")
     resp = requests.get(url, timeout=30)
     resp.raise_for_status()
-    cached.write_text(resp.text)
-    checksum_file.write_text(_sha256(cached) + "\n")
-    return resp.text
+    cached.write_bytes(resp.content)
+    write_text_lf(checksum_file, hashlib.sha256(resp.content).hexdigest() + "\n")
+    return resp.content.decode("utf-8")
 
 
 def download_organ_proteins() -> dict[str, list[str]]:
@@ -218,7 +230,8 @@ def download_coefficients(
 
             reader = csv.reader(io.StringIO(text))
             header = next(reader)
-            rows = list(reader)
+            # A blank line is not a fold row; counting one would shift every fold after it.
+            rows = [row for row in reader if row]
 
             if fold < 1:
                 raise ValueError("fold must be a positive 1-based index")
@@ -237,6 +250,14 @@ def download_coefficients(
                     coefs[col_name] = float(val)
                 except ValueError:
                     continue
+
+            # Without a protein weight every prediction for this organ would be NaN, with no warning.
+            if not any(name != "Intercept" for name in coefs):
+                raise ValueError(
+                    f"{organ} {gen} fold {fold} has no numeric protein coefficients in "
+                    f"{cache_name}. Delete that file from the proteomics-clock cache to "
+                    "download it again."
+                )
 
             result[key] = coefs
 
@@ -363,7 +384,7 @@ def write_reproducibility(output_dir: Path, input_desc: str, command_args: list[
     repro_dir.mkdir(parents=True, exist_ok=True)
 
     command_text = "python skills/proteomics-clock/proteomics_clock.py " + " ".join(command_args) + "\n"
-    (repro_dir / "commands.sh").write_text(command_text)
+    write_text_lf(repro_dir / "commands.sh", command_text)
 
     env_text = """name: clawbio-proteomics-clock
 channels:
@@ -376,7 +397,7 @@ dependencies:
   - seaborn
   - requests
 """
-    (repro_dir / "environment.yml").write_text(env_text)
+    write_text_lf(repro_dir / "environment.yml", env_text)
 
     checksums = []
     input_path = Path(input_desc)
@@ -386,7 +407,7 @@ dependencies:
         for path in sorted((output_dir / subdir).glob("*")):
             if path.is_file():
                 checksums.append(f"{_sha256(path)}  {subdir}/{path.name}")
-    (repro_dir / "checksums.sha256").write_text("\n".join(checksums) + "\n")
+    write_text_lf(repro_dir / "checksums.sha256", "\n".join(checksums) + "\n")
 
 
 def write_report(
@@ -490,7 +511,7 @@ using elastic net coefficients trained on UK Biobank data.
 
 {DISCLAIMER}
 """
-    (output_dir / "report.md").write_text(report)
+    write_text_lf(output_dir / "report.md", report)
 
 
 # ---------------------------------------------------------------------------
@@ -595,7 +616,7 @@ def run_analysis(
         "convert_mortality_to_years": convert_mortality_to_years,
         "input_sanity_warnings": input_warnings,
     }
-    (output_dir / "tables" / "clock_metadata.json").write_text(json.dumps(metadata, indent=2))
+    write_text_lf(output_dir / "tables" / "clock_metadata.json", json.dumps(metadata, indent=2))
 
     # Figures — use gen1 preferentially, fall back to gen2
     plot_preds = gen1_preds if gen1_preds is not None else gen2_preds

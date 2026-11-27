@@ -15,6 +15,9 @@ from pathlib import Path
 import numpy as np
 from scipy import stats
 import pytest
+from inline_snapshot import snapshot
+
+from clawbio.common import demo_runner
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SKILL_DIR))
@@ -1030,3 +1033,150 @@ def test_a_report_that_skips_one_estimator_still_corroborates_across_the_others(
     assert ("consistent estimates across IVW, Weighted Median, Weighted Mode"
             in report), [l for l in report.splitlines() if "consistent" in l]
     assert "stands alone" not in report
+
+
+# ── Demo output snapshot ──────────────────────────────────────────────────────
+# Fails when a code change alters any demo number. If the change is intended,
+# run `pytest skills/mendelian-randomisation/tests --inline-snapshot=fix`; it rewrites the
+# snapshot() values below, and the PR diff shows which numbers moved.
+
+@pytest.mark.demo_snapshot
+def test_demo_output_matches_snapshot(tmp_path):
+    assert demo_runner.demo_outputs("mendelian-randomisation", tmp_path) == snapshot({'report.md': """\
+# Mendelian Randomisation Report
+
+**Generated**: <TIMESTAMP> UTC
+**Exposure**: Body mass index (BMI)
+**Outcome**: Type 2 diabetes (T2D)
+**Instruments**: 30 SNPs
+**Mode**: Demo (cached data, offline)
+
+## MR Estimates
+
+| Method | Estimate | SE | 95% CI | P-value |
+|--------|----------|----|--------|---------|
+| IVW | 0.5979 | 0.0369 | [0.5255, 0.6702] | 5.17e-59 |
+| MR-Egger | 0.6022 | 0.0816 | [0.4423, 0.7621] | 4.87e-08 |
+| Weighted Median | 0.6001 | 0.0469 | [0.5081, 0.6921] | 2.07e-37 |
+| Weighted Mode | 0.6031 | 0.0705 | [0.4648, 0.7413] | 2.03e-09 |
+
+## Sensitivity Analysis
+
+| Test | Result | P-value | Interpretation |
+|------|--------|---------|----------------|
+| Cochran's Q | 0.73 (df=29) | 1.0000 | No significant heterogeneity |
+| Egger intercept | -0.0002 | 0.9526 | No directional pleiotropy |
+| Mean F-statistic | 70.6 | — | Strong instruments |
+| Weak instruments (F<10) | 0/30 | — | None |
+| I²_GX | 0.9856 | — | Adequate |
+| Steiger direction | Correct | not computed | Direction consistent with exposure → outcome; significance not assessable without sample sizes; no sample sizes supplied, so the direction is read from the z-statistics under the assumption that the exposure and outcome studies are of comparable size |
+
+## Interpretation
+
+The IVW estimate suggests a positive causal effect of Body mass index (BMI) on Type 2 diabetes (T2D) \n\
+(beta = 0.5979, 95% CI [0.5255, 0.6702], P = 5.17e-59). \n\
+
+Sensitivity analyses show consistent estimates across IVW, MR-Egger, Weighted Median, Weighted Mode, supporting a robust causal inference.
+
+---
+
+*ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions.*
+""", 'result.json': """\
+{
+  "tool": "ClawBio Mendelian Randomisation",
+  "version": "0.1.0",
+  "timestamp": "<TIMESTAMP> UTC",
+  "mode": "demo",
+  "exposure": "Body mass index (BMI)",
+  "outcome": "Type 2 diabetes (T2D)",
+  "estimates": [
+    {
+      "method": "IVW",
+      "estimate": 0.597863,
+      "se": 0.036909,
+      "pvalue": "5.17e-59",
+      "n_snps": 30
+    },
+    {
+      "method": "MR-Egger",
+      "estimate": 0.602231,
+      "se": 0.081583,
+      "pvalue": "4.87e-08",
+      "n_snps": 30
+    },
+    {
+      "method": "Weighted Median",
+      "estimate": 0.600088,
+      "se": 0.046948,
+      "pvalue": "2.07e-37",
+      "n_snps": 30
+    },
+    {
+      "method": "Weighted Mode",
+      "estimate": 0.603087,
+      "se": 0.070531,
+      "pvalue": "2.03e-09",
+      "n_snps": 30
+    }
+  ],
+  "sensitivity": {
+    "cochran_q": 0.73,
+    "cochran_q_p": 1.0,
+    "egger_intercept": -0.000187,
+    "egger_intercept_p": 0.9526,
+    "mean_f_stat": 70.6,
+    "n_weak": 0,
+    "i_squared_gx": 0.9856,
+    "steiger_correct": true,
+    "steiger_p": null,
+    "steiger_note": "no sample sizes supplied, so the direction is read from the z-statistics under the assumption that the exposure and outcome studies are of comparable size"
+  },
+  "disclaimer": "ClawBio is a research and educational tool. It is not a medical device and does not provide clinical diagnoses. Consult a healthcare professional before making any medical decisions."
+}\
+""", 'tables/harmonised_instruments.tsv': """\
+SNP	effect_allele	other_allele	eaf	beta_exp	se_exp	pval_exp	beta_out	se_out	pval_out	f_stat	palindromic	weak
+rs16988000	A	G	0.807	-0.07369	0.0071	8.87e-21	-0.04466	0.01545	3.84e-03	107.7	False	False
+rs79721495	A	G	0.591	0.02664	0.00338	1.19e-26	0.01426	0.00707	4.37e-02	62.1	False	False
+rs92186040	T	C	0.301	-0.07879	0.00748	1.02e-30	-0.04816	0.01229	8.90e-05	111.0	False	False
+rs75819744	G	A	0.466	-0.07259	0.01549	2.30e-24	-0.04371	0.02591	9.16e-02	22.0	False	False
+rs57669073	T	C	0.794	-0.04553	0.00608	2.87e-20	-0.026	0.01506	8.43e-02	56.1	False	False
+rs69846905	C	T	0.713	0.06909	0.00699	3.57e-18	0.03921	0.00968	5.11e-05	97.7	False	False
+rs31726097	T	C	0.639	-0.06287	0.00723	1.84e-23	-0.0391	0.01339	3.50e-03	75.6	False	False
+rs65275917	C	T	0.335	0.03614	0.00643	3.94e-28	0.02492	0.01575	1.14e-01	31.6	False	False
+rs71180947	C	T	0.308	-0.04913	0.00465	5.34e-21	-0.02728	0.00749	2.70e-04	111.6	False	False
+rs14203533	G	A	0.462	-0.07792	0.0072	2.88e-19	-0.04899	0.00924	1.10e-07	117.1	False	False
+rs36764479	A	G	0.256	0.0714	0.00907	4.91e-09	0.04643	0.02188	3.38e-02	62.0	False	False
+rs12148871	C	T	0.197	-0.02268	0.00238	1.05e-22	-0.01361	0.00333	4.37e-05	90.8	False	False
+rs43069571	T	C	0.652	0.07625	0.00948	1.30e-11	0.04219	0.01496	4.80e-03	64.7	False	False
+rs57073339	C	T	0.727	-0.0749	0.00902	2.58e-17	-0.04734	0.01257	1.66e-04	69.0	False	False
+rs27400239	A	G	0.411	-0.02441	0.00261	2.75e-29	-0.01448	0.00475	2.30e-03	87.5	False	False
+rs92643123	G	A	0.831	-0.04985	0.00567	1.96e-26	-0.03004	0.00794	1.55e-04	77.3	False	False
+rs70741374	G	A	0.467	0.034	0.00395	1.77e-09	0.01996	0.00807	1.34e-02	74.1	False	False
+rs7467611	C	T	0.487	0.06072	0.0111	2.19e-20	0.03479	0.02465	1.58e-01	29.9	False	False
+rs70370789	C	T	0.412	-0.04552	0.00413	3.71e-17	-0.02702	0.00745	2.87e-04	121.5	False	False
+rs56799328	C	T	0.361	0.04892	0.00579	2.86e-20	0.03035	0.00901	7.56e-04	71.4	False	False
+rs13692439	A	G	0.863	-0.07272	0.00962	5.85e-26	-0.04112	0.02356	8.09e-02	57.1	False	False
+rs48237950	C	T	0.188	0.06296	0.00718	4.15e-21	0.03517	0.01487	1.80e-02	76.9	False	False
+rs18799708	A	G	0.864	0.03028	0.00297	1.28e-24	0.01866	0.00552	7.24e-04	103.9	False	False
+rs38149597	G	A	0.845	-0.02968	0.00597	8.79e-18	-0.01549	0.01413	2.73e-01	24.7	False	False
+rs35499597	A	G	0.177	0.02138	0.00411	4.51e-21	0.01525	0.00661	2.10e-02	27.1	False	False
+rs62209284	A	G	0.84	0.03896	0.00435	4.22e-18	0.02318	0.00904	1.03e-02	80.2	False	False
+rs17030999	G	A	0.411	-0.07682	0.01558	1.85e-24	-0.04335	0.02539	8.78e-02	24.3	False	False
+rs98593285	T	C	0.355	-0.07418	0.0124	5.82e-10	-0.0466	0.03095	1.32e-01	35.8	False	False
+rs22759933	A	G	0.13	-0.05136	0.01089	1.91e-21	-0.0328	0.01646	4.63e-02	22.2	False	False
+rs57503709	C	T	0.247	-0.02171	0.00194	4.95e-26	-0.01258	0.0029	1.44e-05	125.2	False	False
+""", 'tables/mr_results.tsv': """\
+method	estimate	se	ci_lower	ci_upper	pvalue	n_snps	note
+IVW	0.597863	0.036909	0.525522	0.670205	5.17e-59	30	
+MR-Egger	0.602231	0.081583	0.442328	0.762134	4.87e-08	30	
+Weighted Median	0.600088	0.046948	0.508071	0.692106	2.07e-37	30	
+Weighted Mode	0.603087	0.070531	0.464847	0.741328	2.03e-09	30	
+""", 'tables/sensitivity.tsv': """\
+test	statistic	pvalue	interpretation
+Cochran_Q	0.73	1.0000	No significant heterogeneity
+Egger_intercept	-0.000187	0.9526	No evidence of directional pleiotropy
+Mean_F_statistic	70.6	N/A	Strong instruments
+Min_F_statistic	22.0	N/A	0 weak instruments (F<10)
+I_squared_GX	0.9856	N/A	No SIMEX needed
+Steiger_direction	Correct	not_applicable	Direction consistent with exposure → outcome; significance not assessable without sample sizes; no sample sizes supplied, so the direction is read from the z-statistics under the assumption that the exposure and outcome studies are of comparable size
+"""})

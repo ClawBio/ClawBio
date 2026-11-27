@@ -239,7 +239,7 @@ def test_commands_are_portable_and_require_input_file(tmp_path) -> None:
     commands = paths["commands"].read_text(encoding="utf-8")
     flat_commands = flat(commands)
 
-    assert "CLAWBIO_ROOT:=/path/to/ClawBio" in commands
+    assert "CLAWBIO_ROOT:=" not in commands
     assert '"$CLAWBIO_ROOT/skills/gwas-prs/gwas_prs.py"' in commands
     assert (
         "${INPUT_FILE:?Set INPUT_FILE to the genotype file used for this run}"
