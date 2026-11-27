@@ -1,10 +1,7 @@
 """Tests for clawbio.common.report."""
 
 import json
-import tempfile
-from pathlib import Path
 
-import pytest
 
 from clawbio.common.report import (
     generate_report_header,

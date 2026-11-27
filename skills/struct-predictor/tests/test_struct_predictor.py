@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 import sys
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -14,7 +13,7 @@ import pytest
 SKILL_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SKILL_DIR))
 
-from struct_predictor_core.io import validate_and_prepare, VALID_AA
+from struct_predictor_core.io import validate_and_prepare
 
 # ---------------------------------------------------------------------------
 # Fixtures

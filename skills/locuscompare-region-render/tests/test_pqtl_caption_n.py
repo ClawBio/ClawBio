@@ -10,7 +10,6 @@ import pytest
 SKILL_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SKILL_DIR))
 
-import locuscompare_region_render  # noqa: E402  (puts the sibling skills on sys.path)
 from locuscompare_region_render import (  # noqa: E402
     EXPOSURE_KIND_UKB_PPP,
     LocusCompareSpec,

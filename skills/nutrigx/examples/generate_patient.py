@@ -25,7 +25,6 @@ Output:
 """
 
 import argparse
-import json
 import random
 import subprocess
 import sys

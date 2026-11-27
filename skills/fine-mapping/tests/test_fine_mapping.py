@@ -1179,7 +1179,7 @@ class TestGeneTrack:
         import json
         import urllib.error
         from fine_mapping_core.report import _fetch_genes
-        from unittest.mock import MagicMock, call, patch
+        from unittest.mock import MagicMock, patch
 
         # First two calls raise 429; third succeeds
         gene_data = [{"feature_type": "gene", "gene_id": "ENSG001",
@@ -1267,7 +1267,7 @@ class TestGeneTrack:
         """_fetch_genes strips 'chr' prefix from chromosome before building URL."""
         import json
         from fine_mapping_core.report import _fetch_genes
-        from unittest.mock import MagicMock, call, patch
+        from unittest.mock import MagicMock, patch
 
         mock_resp = MagicMock()
         mock_resp.read.return_value = json.dumps([]).encode()

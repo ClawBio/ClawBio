@@ -15,7 +15,6 @@ Dependencies: chromadb, voyageai (optional)
 
 import argparse
 import csv
-import json
 import os
 import sys
 import shlex
@@ -51,10 +50,9 @@ def _get_embed_fn():
     if not api_key:
         return None
     try:
-        from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction
+        from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction  # noqa: F401  (availability check)
         # Voyage AI is compatible with the OpenAI embedding interface
         import voyageai  # noqa: F401
-        from chromadb.utils.embedding_functions import OpenAIEmbeddingFunction  # noqa: F811
 
         class VoyageEmbedder:
             def __init__(self):

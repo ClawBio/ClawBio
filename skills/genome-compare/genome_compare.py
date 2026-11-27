@@ -34,7 +34,6 @@ from clawbio.common.parsers import (
     parse_genetic_file,
     genotypes_to_simple,
     genotypes_to_positions,
-    open_genetic_file,
     stage_from_icloud,
 )
 from clawbio.common.checksums import sha256_hex

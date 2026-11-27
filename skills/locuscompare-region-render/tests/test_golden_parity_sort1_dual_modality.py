@@ -66,7 +66,6 @@ for _p in (
 # next to this skill in the same checkout.
 try:
     from eqtl_catalogue_region_fetch import (  # noqa: E402
-        EQTLCatalogueClient,
         EQTLCatalogueRelease,
     )
     from eqtl_catalogue_region_fetch import (  # noqa: E402
@@ -75,7 +74,6 @@ try:
         collapse_duplicate_rsid_rows,
     )
     from gwas_catalog_region_fetch import (  # noqa: E402
-        GWASCatalogClient,
         GWASCatalogRelease,
     )
     from gwas_catalog_region_fetch import (  # noqa: E402
@@ -90,7 +88,6 @@ try:
         render_locuscompare_for_lead,
     )
     from ukb_ppp_region_fetch import (  # noqa: E402
-        UKBPPPClient,
         UKBPPPRelease,
     )
     from ukb_ppp_region_fetch import (  # noqa: E402

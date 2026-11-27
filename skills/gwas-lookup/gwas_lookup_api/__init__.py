@@ -29,8 +29,6 @@ _SKILL_DIR = Path(__file__).resolve().parent.parent
 if str(_SKILL_DIR) not in sys.path:
     sys.path.insert(0, str(_SKILL_DIR))
 
-from clawbio.common.report import write_result_json
-
 import gwas_lookup as _engine  # noqa: E402  (sibling module in skill dir)
 
 

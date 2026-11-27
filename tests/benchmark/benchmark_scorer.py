@@ -22,7 +22,6 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Optional
 
 GROUND_TRUTH_PATH = Path(__file__).parent / "ad_ground_truth.json"
 

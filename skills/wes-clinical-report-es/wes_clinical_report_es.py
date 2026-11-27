@@ -8,7 +8,6 @@ Proyecto: X202SC26016276-Z01-F001 (Novogene WES, 7 muestras, hg38)
 """
 
 import re
-import textwrap
 from pathlib import Path
 from datetime import datetime
 
@@ -598,7 +597,6 @@ def header_footer_es(canvas, doc):
 
 def _draw_logos(canvas, y_center):
     """Draw Predice (left) and Inbiomedic (right) logos centred on y_center."""
-    from reportlab.lib.utils import ImageReader
 
     # Predice logo - left side
     # Original: 166x100 px. Render at 20mm height.

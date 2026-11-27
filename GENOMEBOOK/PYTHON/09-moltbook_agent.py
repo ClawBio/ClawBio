@@ -31,12 +31,11 @@ import argparse
 import json
 import os
 import random
-import sys
 import time
 import urllib.request
 import urllib.error
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime
 
 BASE = Path(__file__).resolve().parent.parent
 DATA = BASE / "DATA"

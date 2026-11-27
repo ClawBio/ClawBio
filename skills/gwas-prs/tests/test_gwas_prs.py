@@ -1,7 +1,6 @@
 """Tests for the GWAS PRS calculator."""
 import argparse
 import json
-import math
 import sys
 import time
 from pathlib import Path

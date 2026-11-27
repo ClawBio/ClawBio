@@ -8,9 +8,7 @@ EIGENSTRAT .geno files.
 
 from __future__ import annotations
 
-import os
 import shutil
-import struct
 import subprocess
 import sys
 from math import ceil

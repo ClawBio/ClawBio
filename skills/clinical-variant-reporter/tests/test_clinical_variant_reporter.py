@@ -20,7 +20,6 @@ sys.path.insert(0, str(SKILL_DIR))
 
 from acmg_engine import (
     ACMG_SF_V32_GENES,
-    ClassifiedVariant,
     EvidenceCriterion,
     VariantEvidence,
     classify,
@@ -35,9 +34,7 @@ from clinical_variant_reporter import (
     VEP_REST_HOST,
     VEP_REST_HOST_GRCH37,
     VEP_REST_PATH,
-    VEP_REST_URL,
     annotate_variants_vep,
-    build_evidence_from_cache,
     generate_report,
     load_demo_evidence_cache,
     parse_vcf,

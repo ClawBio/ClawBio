@@ -7,7 +7,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from clawbio.common.report import (
-    DISCLAIMER,
     generate_report_header,
     generate_report_footer,
     write_result_json,

@@ -1,0 +1,12 @@
+# Optional local hook. Install it with `uvx prek install` (prek reads this file;
+# so does pre-commit). CI runs the same check, so the hook is a shortcut, not the gate.
+# ruff comes from the dev group in uv.lock, so the hook and CI use the same version.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run --frozen --only-group dev ruff check --fix --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true

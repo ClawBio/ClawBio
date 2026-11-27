@@ -17,7 +17,6 @@ from finemapping_benchmark import (
     run_method_susie,
     score_method,
     run_benchmark,
-    CAUSAL_INDICES,
     METHODS,
 )
 

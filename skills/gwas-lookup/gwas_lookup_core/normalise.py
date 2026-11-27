@@ -7,7 +7,6 @@ deduplicates by trait+source, and sorts by p-value.
 
 from __future__ import annotations
 
-import math
 from typing import Any
 
 GWS_THRESHOLD = 5e-8  # genome-wide significance

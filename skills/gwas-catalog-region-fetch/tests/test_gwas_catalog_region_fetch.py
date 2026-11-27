@@ -7,7 +7,7 @@ Live smoke goes in test_live_gwas_catalog_region_fetch.py.
 from __future__ import annotations
 
 import importlib.util
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 import requests

@@ -10,7 +10,6 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 import shutil
-import sys
 
 from clawbio.common.vcf_qc import VcfQC, QcConfig, QcResult
 

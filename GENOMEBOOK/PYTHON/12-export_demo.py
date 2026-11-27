@@ -83,7 +83,6 @@ def load_observatory():
 
 def load_genome_nodes():
     """Load compact genome data for phylogeny + PCA."""
-    from importlib.util import spec_from_file_location, module_from_spec
     import math
 
     genomes = []

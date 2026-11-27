@@ -10,7 +10,6 @@ Run:
 from __future__ import annotations
 
 import math
-import tempfile
 import tracemalloc
 from itertools import combinations
 from pathlib import Path

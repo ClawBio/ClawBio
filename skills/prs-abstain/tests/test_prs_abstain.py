@@ -1126,7 +1126,6 @@ class TestSdProvenance:
         """Through main(), not the unit: a results file whose z_score is exactly
         0.0 must produce af_shift_sd None plus the raw-units caveat, never a
         quotient over a silently substituted sd of 1.0."""
-        import shutil
         results = json.loads((EXAMPLES / "demo_prs_results.json").read_text())
         # The demo results are keyed per sample; sd derivation falls back to any
         # record of the score, so every copy must sit exactly at the mean.
@@ -1594,7 +1593,6 @@ class TestReferenceSdProvenance:
         """An authentic-style file (pgs_id header, no clawbio_panel) gated against
         a named cohort must print the raw shift with the provenance reason, never
         a definite sd figure."""
-        import prs_abstain as pa
         d = tmp_path / "scores"; d.mkdir()
         (d / "PGS000099_hmPOS_GRCh37.txt").write_text(
             "#pgs_id=PGS000099\n#trait_reported=T\n#genome_build=GRCh37\n"

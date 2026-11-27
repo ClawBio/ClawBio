@@ -22,7 +22,6 @@ import tempfile
 import time as _time
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass

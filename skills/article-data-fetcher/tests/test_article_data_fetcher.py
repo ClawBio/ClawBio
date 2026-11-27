@@ -1,16 +1,12 @@
 """Tests for article-data-fetcher skill."""
 
-import json
-import re
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from article_data_fetcher import (
-    ACCESSION_PATTERNS,
     discover_accessions,
     file_matches_types,
     parse_identifier,
