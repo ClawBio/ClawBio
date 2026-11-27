@@ -58,7 +58,6 @@ the join key matches eQTL Catalogue + GWAS Catalog feeds.
 from __future__ import annotations
 
 import argparse
-import csv
 import gzip
 import io
 import json

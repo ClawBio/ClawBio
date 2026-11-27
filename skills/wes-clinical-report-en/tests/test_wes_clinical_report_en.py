@@ -337,8 +337,6 @@ class TestLimitationsSection:
 class TestCLI:
     def test_demo_flag_accepted(self, tmp_path, sample_md_path):
         """Verify the script accepts --demo flag without error."""
-        from wes_clinical_report_en import main
-        import argparse
         # Just verify the argparser works
         from wes_clinical_report_en import _build_argparser
         parser = _build_argparser()

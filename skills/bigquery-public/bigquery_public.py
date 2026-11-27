@@ -9,7 +9,6 @@ fixture so tests and first-run experience do not require cloud authentication.
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
@@ -29,10 +28,10 @@ from bigquery_backends import (  # noqa: E402
 )
 from bigquery_models import (  # noqa: E402
     BigQuerySetupError,
-    DISCOVERY_DESCRIBE,
-    DISCOVERY_LIST_DATASETS,
-    DISCOVERY_LIST_TABLES,
-    DiscoveryRequest,
+    DISCOVERY_DESCRIBE,  # noqa: F401  (re-exported; tests use bigquery_public.DISCOVERY_DESCRIBE)
+    DISCOVERY_LIST_DATASETS,  # noqa: F401  (re-exported; tests use bigquery_public.DISCOVERY_LIST_DATASETS)
+    DISCOVERY_LIST_TABLES,  # noqa: F401  (re-exported; tests use bigquery_public.DISCOVERY_LIST_TABLES)
+    DiscoveryRequest,  # noqa: F401  (re-exported; tests use bigquery_public.DiscoveryRequest)
     QueryValidationError,
     QueryExecutionResult,
     SKILL_NAME,
@@ -43,10 +42,10 @@ from bigquery_support import (  # noqa: E402
     build_report,
     ensure_output_dir_ready as _ensure_output_dir_ready,
     load_demo_result,
-    parse_scalar_param,
+    parse_scalar_param,  # noqa: F401  (re-exported; tests use bigquery_public.parse_scalar_param)
     parse_scalar_params,
     resolve_run_plan as _resolve_run_plan,
-    validate_read_only_sql,
+    validate_read_only_sql,  # noqa: F401  (re-exported; tests use bigquery_public.validate_read_only_sql)
     write_reproducibility_bundle,
     _write_results_csv,
 )

@@ -57,7 +57,7 @@ def markdown_to_pdf(md_path: Path, pdf_path: Path, title: str,
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import mm
-    from reportlab.platypus import (Image, KeepTogether, PageBreak, Paragraph,
+    from reportlab.platypus import (Image, KeepTogether, Paragraph,
                                     SimpleDocTemplate, Spacer, Table, TableStyle)
 
     ss = getSampleStyleSheet()

@@ -19,7 +19,6 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-import pandas as pd
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[1]

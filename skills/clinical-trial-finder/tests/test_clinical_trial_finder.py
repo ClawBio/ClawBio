@@ -1,6 +1,5 @@
 """Tests for clinical-trial-finder -- no network calls."""
 
-import argparse
 import importlib.util
 import json
 import sys

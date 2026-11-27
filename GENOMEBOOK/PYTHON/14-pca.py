@@ -13,7 +13,6 @@ import argparse
 import json
 import math
 from pathlib import Path
-from collections import defaultdict
 
 BASE = Path(__file__).resolve().parent.parent
 DATA = BASE / "DATA"

@@ -23,10 +23,6 @@ from unittest.mock import MagicMock, patch
 from busco_assessor import (  # noqa: E402
     DEMO_COMPLETENESS,
     DEMO_FULL_TABLE_ROWS,
-    DEMO_LINEAGE,
-    DEMO_LIVE_COMPLETENESS,
-    DEMO_LIVE_ORGANISM,
-    DEMO_LIVE_URL,
     DISCLAIMER,
     MAX_DOWNLOAD_BYTES,
     NCBI_USER_AGENT,
@@ -43,8 +39,6 @@ from busco_assessor import (  # noqa: E402
     run_demo_live,
     validate_args,
     write_reproducibility_bundle,
-    write_report,
-    write_result_json,
 )
 
 # ---------------------------------------------------------------------------

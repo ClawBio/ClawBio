@@ -27,11 +27,9 @@ import json
 import logging
 import shutil
 import subprocess
-import sys
 import time
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Optional
 
 log = logging.getLogger(__name__)
 

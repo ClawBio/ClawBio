@@ -11,7 +11,6 @@ gracefully if the binaries are not available.
 from __future__ import annotations
 
 import json
-import shutil
 import sys
 from pathlib import Path
 
@@ -26,7 +25,6 @@ from gwas_pipeline import (
     _find_binary,
     compute_lambda_gc,
     extract_lead_variants,
-    generate_report,
     parse_regenie_output,
     run_pipeline,
 )

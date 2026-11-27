@@ -1402,8 +1402,6 @@ def _render_result_to_png(result: ExtractedData) -> str:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-        import matplotlib.patches as mpatches
-        from matplotlib.patches import FancyBboxPatch
         import numpy as np
     except ImportError:
         logger.warning("matplotlib not available for verification rendering")

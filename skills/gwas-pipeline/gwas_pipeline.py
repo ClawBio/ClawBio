@@ -25,8 +25,7 @@ import math
 import shutil
 import subprocess
 import sys
-import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -351,7 +350,6 @@ def manhattan_plot(results: list[GWASResult], output_path: Path) -> None:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-        import numpy as np
     except ImportError:
         print("  WARNING: matplotlib/numpy not available — skipping Manhattan plot", file=sys.stderr)
         return
@@ -414,7 +412,6 @@ def qq_plot(results: list[GWASResult], output_path: Path, lambda_gc: float) -> N
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
-        import numpy as np
     except ImportError:
         print("  WARNING: matplotlib/numpy not available — skipping QQ plot", file=sys.stderr)
         return

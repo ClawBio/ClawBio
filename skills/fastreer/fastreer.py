@@ -32,7 +32,6 @@ __licence__ = "GPL-3.0"
 
 import argparse
 import json
-import os
 import shutil
 import subprocess
 import sys

@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
-from clawbio.contract_alerts import normalise_contract_alerts, render_contract_alerts
+from clawbio.contract_alerts import normalise_contract_alerts, render_contract_alerts  # noqa: F401  (render_contract_alerts re-exported for bot/roboterri*.py)
 
 DEFAULT_PENDING_ACTION_TTL_SECONDS = 30 * 60
 

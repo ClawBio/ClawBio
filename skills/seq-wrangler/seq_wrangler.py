@@ -26,7 +26,6 @@ import os
 import re
 import shlex
 import shutil
-import statistics
 import subprocess
 import sys
 from datetime import datetime, timezone

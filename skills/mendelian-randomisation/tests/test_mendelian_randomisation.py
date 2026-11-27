@@ -30,7 +30,6 @@ from mendelian_randomisation import (
     cochran_q,
     egger_weighted_dispersion,
     compute_i_squared_gx,
-    generate_report,
     ivw,
     leave_one_out,
     load_demo_instruments,

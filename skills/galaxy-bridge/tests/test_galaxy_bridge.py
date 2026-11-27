@@ -8,8 +8,6 @@ All tests run offline — no Galaxy API key required.
 from __future__ import annotations
 
 import json
-import shutil
-import tempfile
 from pathlib import Path
 
 import pytest

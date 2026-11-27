@@ -1,7 +1,6 @@
 """Tests for clawbio.common.textio — cross-OS LF-only bundle writes."""
 
 import os
-from pathlib import Path
 
 from clawbio.common.textio import write_text_lf, write_text_lf_atomic
 
@@ -69,7 +68,6 @@ def test_atomic_replace_preserves_open_reader(tmp_path):
 
 
 def test_atomic_preserves_executable_bit(tmp_path):
-    import os
     from clawbio.common.textio import write_text_lf_atomic
 
     p = tmp_path / "script.sh"

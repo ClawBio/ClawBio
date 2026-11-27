@@ -39,7 +39,6 @@ try:
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    import matplotlib.patches as mpatches
     import numpy as np
     import pandas as pd
 
@@ -57,7 +56,6 @@ if str(_PROJECT_ROOT) not in sys.path:
 try:
     from clawbio.common.reproducibility import (  # noqa: E402
         ReproCommand,
-        ReproPath,
         write_checksums,
         write_environment_yml,
         write_portable_commands_sh,
@@ -635,7 +633,6 @@ def main(argv: list[str] | None = None) -> int:
     figures: dict[str, Path] = {}
     if HAS_VIZ:
         import pandas as pd  # noqa: F811 (may not have been imported at top level)
-        import numpy as np  # noqa: F811
 
         for key in database_keys:
             rows = all_results.get(key, [])

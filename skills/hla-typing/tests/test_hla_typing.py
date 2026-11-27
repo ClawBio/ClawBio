@@ -7,7 +7,6 @@ from pathlib import Path
 
 from clawbio.common import demo_runner
 
-import pytest
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 SCRIPT = SKILL_DIR / "hla_typing.py"

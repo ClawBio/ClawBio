@@ -16,7 +16,6 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from clawbio.common.report import (  # noqa: E402
-    DISCLAIMER,
     generate_report_footer,
     generate_report_header,
 )

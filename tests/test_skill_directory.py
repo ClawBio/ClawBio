@@ -36,7 +36,6 @@ def test_every_skill_is_in_static_html():
 
 
 def test_only_tags_are_visible():
-    from html import escape
     from html.parser import HTMLParser
     class Tags(HTMLParser):
         def __init__(self):

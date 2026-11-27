@@ -24,7 +24,6 @@ from affinity_proteomics import (
     DiffAbundanceResult,
     ProteomicsData,
     differential_abundance,
-    generate_report,
     handle_action_request,
     parse_olink_npx,
     run_pipeline,

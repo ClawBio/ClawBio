@@ -7,10 +7,8 @@ reproducibility bundle, and custom chart generation.
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
