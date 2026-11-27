@@ -4719,10 +4719,10 @@
       "has_script": true,
       "has_tests": true,
       "has_demo": true,
-      "demo_command": "python skills/turingdb-graph/turingdb_graph.py --demo",
+      "demo_command": "python skills/turingdb-graph/turingdb_graph.py --demo cohort",
       "dependencies": [
         "python>=3.11",
-        "turingdb>=1.29",
+        "turingdb>=3.1,<4",
         "pandas>=2.0",
         "fastapi>=0.110",
         "uvicorn>=0.27",

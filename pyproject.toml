@@ -91,6 +91,14 @@ cell-detection = [
 labstep = ["labstep>=3.0"]
 galaxy-bridge = ["bioblend>=1.2"]
 affinity-proteomics = ["statsmodels>=0.14"]
+# turingdb (client, in-process engine and server binary) for skills/turingdb-graph;
+# tabulate backs pandas' to_markdown() in its query reports. turingdb publishes
+# wheels only, for Linux (glibc 2.35+) and Apple Silicon macOS, so the marker keeps
+# `uv sync --all-extras` working on Windows and Intel Macs, where it is skipped.
+turingdb-graph = [
+    "turingdb>=3.1,<4 ; sys_platform == 'linux' or (sys_platform == 'darwin' and platform_machine == 'arm64')",
+    "tabulate>=0.9",
+]
 drug-repurposing-screen = ["pyarrow>=26.0.1"]
 # Scanpy/Leiden for skills/spatial-transcriptomics. Squidpy is not on this
 # extra: 1.4–1.6 all pull spatialdata + dask + s3fs into `uv sync --all-extras`
