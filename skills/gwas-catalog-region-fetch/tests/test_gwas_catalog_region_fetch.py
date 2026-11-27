@@ -1,6 +1,7 @@
 """Unit tests for the GWAS Catalog harmonised region fetcher.
 
-Mocks pysam.TabixFile so tests are offline. Live smoke goes in test_live_gwas_catalog_region_fetch.py.
+Mocks HTTP discovery and pysam.TabixFile so tests are offline.
+Live smoke goes in test_live_gwas_catalog_region_fetch.py.
 """
 
 from __future__ import annotations
@@ -9,6 +10,7 @@ import importlib.util
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 from gwas_catalog_region_fetch import (
     GWASCatalogClient,
@@ -19,6 +21,24 @@ from gwas_catalog_region_fetch import (
 )
 
 needs_pysam = pytest.mark.skipif(importlib.util.find_spec("pysam") is None, reason="needs pysam (uv sync --extra region-fetch)")
+
+
+@pytest.fixture(autouse=True)
+def forbid_live_http(monkeypatch):
+    """Every unit test must fail immediately if an HTTP call escapes its mocks."""
+    def fail_request(*args, **kwargs):
+        raise AssertionError("unit tests must not make live HTTP requests")
+    monkeypatch.setattr("requests.sessions.Session.request", fail_request)
+
+
+@pytest.fixture(autouse=True)
+def offline_http_session(monkeypatch, forbid_live_http):
+    """Keep real URL discovery while replacing its HTTP boundary per test."""
+    session = MagicMock(spec_set=["head", "get"])
+    session.head.return_value.status_code = 200
+    session.get.side_effect = AssertionError("unexpected HTTP GET in unit test")
+    monkeypatch.setattr("gwas_catalog_region_fetch.requests.Session", lambda: session)
+    return session
 
 
 # ----------------------- URL construction -----------------------
@@ -51,9 +71,38 @@ def test_gcst_url_base_rejects_malformed_accession(bad):
         gcst_url_base(bad)
 
 
-def test_harmonised_file_url_appends_h_tsv_gz():
+def test_harmonised_file_url_appends_h_tsv_gz(offline_http_session):
     url = harmonised_file_url("GCST90475990")
     assert url.endswith("GCST90475990.h.tsv.gz")
+    offline_http_session.head.assert_called_once_with(url, timeout=30.0, allow_redirects=True)
+    offline_http_session.get.assert_not_called()
+
+
+def test_harmonised_file_url_falls_back_to_prefixed_listing(offline_http_session):
+    offline_http_session.head.return_value.status_code = 404
+    offline_http_session.get.side_effect = None
+    filename = "12345678-GCST90475990-EFO_0001.h.tsv.gz"
+    offline_http_session.get.return_value = MagicMock(
+        status_code=200, text=f'<a href="{filename}">harmonised file</a>',
+    )
+    base = gcst_url_base("GCST90475990")
+    assert harmonised_file_url("GCST90475990") == f"{base}/{filename}"
+    offline_http_session.get.assert_called_once_with(f"{base}/", timeout=30.0)
+
+
+def test_harmonised_file_url_reports_missing_file(offline_http_session):
+    offline_http_session.head.return_value.status_code = 404
+    offline_http_session.get.side_effect = None
+    offline_http_session.get.return_value.status_code = 404
+    with pytest.raises(GWASCatalogFetchError, match="no harmonised .h.tsv.gz found"):
+        harmonised_file_url("GCST90475990")
+
+
+def test_harmonised_file_url_reports_directory_connection_error(offline_http_session):
+    offline_http_session.head.side_effect = requests.ConnectionError("HEAD unavailable")
+    offline_http_session.get.side_effect = requests.ConnectionError("listing unavailable")
+    with pytest.raises(GWASCatalogFetchError, match="could not list harmonised dir"):
+        harmonised_file_url("GCST90475990")
 
 
 def test_gcst_url_rejects_non_numeric_accession():
@@ -170,7 +219,7 @@ def test_fetch_region_raises_on_unopenable_index(monkeypatch):
     monkeypatch.setattr("pysam.TabixFile", boom)
 
     client = GWASCatalogClient()
-    with pytest.raises(GWASCatalogFetchError):
+    with pytest.raises(GWASCatalogFetchError, match="could not open tabix index"):
         # Valid GCST format but the tabix open will fail (mocked).
         client.fetch_region("GCST99999999", "2", 1, 1000)
 

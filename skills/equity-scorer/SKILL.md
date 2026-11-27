@@ -5,6 +5,11 @@ description: Compute HEIM diversity and equity metrics from VCF or ancestry data
 license: MIT
 metadata:
   version: 0.1.0
+  tags:
+  - genomics
+  - population-genetics
+  - ancestry
+  - vcf
   openclaw:
     requires:
       bins:
