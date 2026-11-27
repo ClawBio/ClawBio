@@ -1,13 +1,9 @@
 # Minimal Telegram Adapter Tutorial
 
-This compact Telegram walkthrough builds a small teaching bot rather than the
-current production adapters. It preserves the original request/response pattern
-in the smallest useful form.
-
-For maintained interfaces, see [`bot/`](../bot/) and [`bot/README.md`](../bot/README.md):
-there are Telegram, Discord, and WhatsApp adapters. A browser route through the
-OpenClaw bridge is documented in [docs/custom-domain-webchat.md](custom-domain-webchat.md)
-and is more operationally involved.
+> **Historical tutorial.** RoboTerri's Telegram, Discord, and WhatsApp adapters
+> have been retired. This walkthrough builds a standalone Telegram teaching bot.
+> For current conversational setup, see [OpenClaw Gateway](../README.md#openclaw-gateway)
+> or the [Hermes Agent integration](https://github.com/ClawBio/ClawBio/pull/720).
 
 **Time**: ~20 minutes | **Difficulty**: Intermediate | **Prerequisites**: Python 3.12+, Telegram for this walkthrough
 
@@ -24,7 +20,7 @@ and is more operationally involved.
 7. [Build the Bot](#7-build-the-bot)
 8. [Run It](#8-run-it)
 9. [Test It](#9-test-it)
-10. [What the Maintained Adapters Add](#10-what-the-maintained-adapters-add)
+10. [What RoboTerri Added](#10-what-roboterri-added)
 11. [Next Steps](#11-next-steps)
 12. [Troubleshooting](#12-troubleshooting)
 
@@ -55,10 +51,7 @@ The bot you'll build:
 ### Common Confusions
 
 - **LLM integration**: this toy bot does not use an LLM. It maps `/demo` and file
-  extensions directly to `python3 clawbio.py run ...`. The maintained adapters in
-  [`bot/`](../bot/) add the LLM as a planning layer: it chooses a candidate local
-  tool call from tool descriptions, argument schemas, and the user's wording.
-  The adapter still validates and executes `clawbio.py` locally.
+  extensions directly to `python3 clawbio.py run ...`.
 - **Slash commands**: `/start`, `/list`, and `/demo` are Telegram bot commands
   handled by `python-telegram-bot`'s `CommandHandler`. They are separate from the
   repository's [`commands/`](../commands/) directory, which contains
@@ -397,14 +390,12 @@ Bot: Received 23andMe_raw_data.txt. Analysing...
 
 ---
 
-## 10. What the Maintained Adapters Add
+## 10. What RoboTerri Added
 
-The teaching bot above is intentionally thin. The maintained adapters in
-[`bot/`](../bot/) build on the same local `clawbio.py` runner, but add the pieces
-needed for conversational and multi-platform use. If you find yourself wanting
-any of these, switch to a maintained adapter rather than expanding the toy bot.
+The teaching bot and the former RoboTerri adapters used the same local
+`clawbio.py` runner. RoboTerri added conversational routing and follow-up actions.
 
-| Capability | Teaching bot in this tutorial | Maintained adapters |
+| Capability | Teaching bot in this tutorial | Former RoboTerri adapters |
 |------------|--------------------------------|---------------------|
 | Routing | File extension and explicit commands | LLM tool-use loop with structured tool descriptions; optional `INTENTS.json` descriptors |
 | State across messages | Stateless; every request starts a new subprocess | Pending action store with expiry, numbered replies, cancellation, and confirmation gates |
@@ -414,17 +405,14 @@ any of these, switch to a maintained adapter rather than expanding the toy bot.
 | Media handling | Telegram documents and generated files | Documents, photos, queued media, and optional voice replies where supported |
 | Client compatibility | Chat-only example | The same structured result fields can also be used by richer clients and GUI panels |
 
-There is no architectural break between the two. The toy bot shows the core
-loop; the maintained adapters keep that local runner and add planning, state,
-platform handling, and structured follow-up menus around it. The structured
-follow-up fields are described in the [Skill Action Contract](skill-action-contract.md).
+The structured follow-up fields are described in the [Skill Action Contract](skill-action-contract.md).
 
 ---
 
 ## 11. Next Steps
 
 - **Add more skills**: Extend `handle_file()` to route `.fastq` to metagenomics, or add keyword detection
-- **Use a maintained adapter**: See the comparison above and the setup notes in [`bot/README.md`](../bot/README.md)
+- **Set up a conversational interface** with [OpenClaw Gateway](../README.md#openclaw-gateway) or the [Hermes Agent integration](https://github.com/ClawBio/ClawBio/pull/720)
 - **Build your own skill**: See [CONTRIBUTING.md](../CONTRIBUTING.md) and the [skill template](../templates/SKILL-TEMPLATE.md)
 - **Explore the architecture**: See [docs/architecture.md](architecture.md)
 - **Watch the demo**: [ClawBio at UK AI Agent Hack](https://www.youtube.com/watch?v=eEEA71qSOmU)
