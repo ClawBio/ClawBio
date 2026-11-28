@@ -32,6 +32,7 @@ from pathlib import Path
 
 from clawbio import __version__
 from clawbio.contract_alerts import append_contract_alert_log, normalise_contract_alerts
+from clawbio.common.skill_entry import DEMO_EXTRA_ARGS, NO_DEMO, detect_entry_point, run_flags
 from clawbio.common.skill_manifest import SkillManifestError, read_skill_manifest
 
 # --------------------------------------------------------------------------- #
@@ -1491,6 +1492,47 @@ def resolve_skill_name(name: str) -> str:
     return _folder_aliases().get(name, name)
 
 
+def _folder_skill(name: str) -> tuple[dict | None, str | None]:
+    """A skill folder with no SKILLS entry, as a SKILLS-style entry, or the reason it cannot run.
+
+    Read from the folder itself (SKILL.md + entry point), never from skills/catalog.json.
+    It gets only the standard contract: the script's own --input/--output/--demo, and no
+    extra flags (allowed_extra_flags is empty, so INT-001 holds). (None, None) means the
+    folder has no SKILL.md or no script, and the caller says so.
+    """
+    skill_dir = SKILLS_DIR / name
+    skill_md = skill_dir / "SKILL.md"
+    if not name or "/" in name or name.startswith(".") or not skill_md.is_file():
+        return None, None
+    found = detect_entry_point(skill_dir, name)
+    if found is None:
+        return None, None
+    script = found.resolve()
+    if not script.is_relative_to(skill_dir.resolve()):
+        return None, f"'{name}' has no `clawbio run` entry. Follow its SKILL.md ({skill_md})."
+    if script.suffix != ".py":
+        return None, (
+            f"'{name}' is not a Python skill ({script.name}), and `clawbio run` launches only "
+            f"Python scripts. Follow its SKILL.md ({skill_md})."
+        )
+    flags = set(run_flags(script))
+    if "--output" not in flags:
+        return None, (
+            f"'{name}' has no --output flag, so `clawbio run` cannot keep its files in the "
+            f"output folder. Follow its SKILL.md ({skill_md})."
+        )
+    demo_args = None
+    if "--demo" in flags and name not in NO_DEMO:
+        demo_args = ["--demo", *DEMO_EXTRA_ARGS.get(name, ())]
+    return {
+        "script": script,
+        "demo_args": demo_args,
+        "run_flags": flags,
+        "skill_md": skill_md,
+        "allowed_extra_flags": set(),
+    }, None
+
+
 def _unknown_skill_message(name: str) -> str:
     skill_md = SKILLS_DIR / name / "SKILL.md"
     if skill_md.is_file():
@@ -1552,7 +1594,10 @@ def list_skills() -> dict:
             )
             indicator = f"{GREEN}has script{RESET}" if has_script else f"{YELLOW}spec only{RESET}"
             print(f"  {DIM}{skill_dir.name:<20}{RESET} Agent-readable skill")
-            print(f"  {'':20} {DIM}[{indicator}] — SKILL.md only (not via clawbio run){RESET}")
+            if _folder_skill(skill_dir.name)[0]:
+                print(f"  {'':20} {DIM}[{indicator}] — clawbio run, standard flags only{RESET}")
+            else:
+                print(f"  {'':20} {DIM}[{indicator}] — SKILL.md only (not via clawbio run){RESET}")
             print()
     
     total = len(SKILLS) + len(md_only)
@@ -1707,7 +1752,7 @@ def _failure_message(exit_code: int, stderr: str) -> str:
 
 def _skill_version(skill_name: str) -> str:
     """The SKILL.md frontmatter version, so an audit record says which methodology ran."""
-    script = SKILLS.get(skill_name, {}).get("script")
+    script = SKILLS.get(skill_name, {}).get("script") or (_folder_skill(skill_name)[0] or {}).get("script")
     if not script:
         return "unknown"
     try:
@@ -1776,9 +1821,18 @@ def _run_skill(
             timeout=timeout,
         )
 
-    # Validate skill
-    skill_info = SKILLS.get(skill_name)
-    if not skill_info:
+    # Validate skill: a SKILLS entry, else a catalog skill on the standard contract
+    skill_info, refusal = (SKILLS[skill_name], None) if skill_name in SKILLS else _folder_skill(skill_name)
+    if skill_info and "run_flags" in skill_info:
+        needed = "--demo" if demo else "--input" if input_path or profile_path else None
+        if needed and needed not in skill_info["run_flags"]:
+            refusal = (
+                f"'{skill_name}' has no {needed} flag, so `clawbio run` cannot run it that way. "
+                f"Follow its SKILL.md ({skill_info['skill_md']})."
+            )
+        elif demo and skill_info["demo_args"] is None:
+            refusal = f"'{skill_name}' has no catalog demo. Follow its SKILL.md ({skill_info['skill_md']})."
+    if refusal or not skill_info:
         return {
             "skill": skill_name,
             "success": False,
@@ -1786,7 +1840,7 @@ def _run_skill(
             "output_dir": None,
             "files": [],
             "stdout": "",
-            "stderr": _unknown_skill_message(skill_name),
+            "stderr": refusal or _unknown_skill_message(skill_name),
             "duration_seconds": 0,
         }
 

@@ -109,7 +109,11 @@ def test_orchestrator_routes_a_folder_name_it_does_not_map(captured_run, tmp_pat
 
 
 def test_folder_without_a_run_entry_says_so():
-    folder = cli._skill_md_only_directories()[0].name
+    # A folder with a script now runs from the catalog; one with none still has no entry.
+    folder = next(
+        d.name for d in cli._skill_md_only_directories()
+        if cli.detect_entry_point(d, d.name) is None
+    )
     result = cli.run_skill(folder, demo=True)
 
     assert result["success"] is False
