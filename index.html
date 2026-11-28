@@ -79,7 +79,7 @@
     .skill-badge { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 0.2rem 0.6rem; border-radius: 999px; }
     .badge-mvp { background: rgba(63,185,80,0.15); color: var(--accent); border: 1px solid rgba(63,185,80,0.4); }
     .badge-planned { background: rgba(139,148,158,0.15); color: var(--text-muted); border: 1px solid var(--border); }
-    .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; }
+    .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 1.5rem; }
     .feature-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 1.75rem; }
     .feature-icon { font-size: 2rem; margin-bottom: 1rem; }
     .feature-title { font-weight: 700; font-size: 1.05rem; margin-bottom: 0.5rem; }
@@ -99,12 +99,34 @@
     footer a { color: var(--text-muted); text-decoration: none; }
     footer a:hover { color: var(--text); }
     .footer-links { display: flex; gap: 1.5rem; justify-content: center; margin-bottom: 1rem; flex-wrap: wrap; }
+    .updates-list > * > div { min-width: 0; overflow-wrap: anywhere; }
+    /* Narrow screens: the nine nav links need about 900px, so below 60em they fold behind a Menu button.
+       Without JavaScript the links stay in one row that scrolls sideways instead of widening the page. */
+    .nav-toggle { display: none; }
+    .nav-links a:focus-visible, .nav-toggle:focus-visible { outline: 2px solid var(--accent2); outline-offset: 3px; border-radius: 4px; }
+    @media (max-width: 60em) {
+      nav { padding: 0 1rem; gap: 1rem; }
+      .nav-links { min-width: 0; overflow-x: auto; gap: 1.25rem; scrollbar-width: none; white-space: nowrap; }
+      .js .nav-toggle { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 44px; padding: 0 0.9rem; background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+      .nav-toggle .icon-close, .nav-toggle[aria-expanded="true"] .icon-menu { display: none; }
+      .nav-toggle[aria-expanded="true"] .icon-close { display: block; }
+      .js .nav-links { display: none; position: absolute; top: 60px; left: 0; right: 0; flex-direction: column; gap: 0; background: var(--bg); border-bottom: 1px solid var(--border); padding: 0.25rem 1rem 0.75rem; max-height: calc(100dvh - 60px); overflow-y: auto; white-space: normal; }
+      .js nav[data-open] .nav-links { display: flex; }
+      .js .nav-links a { display: flex; align-items: center; min-height: 48px; font-size: 1rem; border-bottom: 1px solid var(--bg3); }
+      .js .nav-links li:last-child a { border-bottom: 0; }
+    }
   </style>
+  <script>document.documentElement.classList.add('js');</script>
 </head>
 <body>
-  <nav>
+  <nav aria-label="Main">
     <a class="nav-logo" href="#"><span>🦖</span> ClawBio</a>
-    <ul class="nav-links">
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">
+      <svg class="icon-menu" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M2.5 4.5h13M2.5 9h13M2.5 13.5h13"/></svg>
+      <svg class="icon-close" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M4 4l10 10M14 4L4 14"/></svg>
+      Menu
+    </button>
+    <ul class="nav-links" id="nav-links">
       <li><a href="skills.html">Skills</a></li>
       <li><a href="#why">Why ClawBio</a></li>
       <li><a href="#community">Community</a></li>
@@ -164,7 +186,7 @@
         The runnable skills execute on your machine and hand back the report, the structured result, and a <code style="font-size:0.85rem;">commands.sh</code> with SHA-256 checksums, so the analysis can be replayed without the agent that produced it.
       </p>
 
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.5rem;align-items:start;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:1.5rem;align-items:start;">
         <div>
           <div style="background:var(--bg3,#161b22);border:1px solid var(--border);border-radius:8px;padding:0.7rem 1rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.95rem;color:var(--accent);text-align:left;white-space:nowrap;overflow-x:auto;">
             <span style="color:var(--text-muted);user-select:none;">&gt; </span>/plugin marketplace add ClawBio/ClawBio
@@ -322,7 +344,7 @@ clawbio run pharmgx --demo</pre>
     <div class="section-inner">
       <div class="section-label">Recent Updates</div>
       <div class="section-title">Latest from the community</div>
-      <div style="display:grid;gap:0.75rem;max-width:700px;">
+      <div class="updates-list" style="display:grid;grid-template-columns:minmax(0,1fr);gap:0.75rem;max-width:700px;">
         <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;display:flex;align-items:center;gap:1rem;">
           <span style="font-size:1.5rem;flex-shrink:0;">🔒</span>
           <div>
@@ -477,7 +499,7 @@ clawbio run pharmgx --demo</pre>
     <div class="section-inner">
       <h2>Get started in 30 seconds</h2>
       <p>Install with pip, conda, as a Claude Code plugin, or as Agent Skills in any editor that reads them. Every skill includes demo data.</p>
-      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1.5rem;font-family:monospace;font-size:0.9rem;text-align:left;max-width:540px;margin:0 auto 2rem;line-height:2;">
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1.5rem;font-family:monospace;font-size:0.9rem;text-align:left;max-width:540px;margin:0 auto 2rem;line-height:2;overflow-x:auto;">
         <span style="color:#8b949e"># Option 1: pip (recommended)</span><br>
         <span style="color:var(--accent2)">pip install clawbio</span><br>
         <span style="color:var(--accent2)">clawbio run pharmgx --demo</span><br><br>
@@ -511,5 +533,22 @@ clawbio run pharmgx --demo</pre>
     </div>
     <p>🦖 ClawBio — MIT License · Built by <a href="https://www.linkedin.com/in/manuelcorpas" target="_blank">Manuel Corpas</a> and the community</p>
   </footer>
+  <script>
+    (() => {
+      const nav = document.querySelector('nav');
+      const button = nav.querySelector('.nav-toggle');
+      const links = nav.querySelector('.nav-links');
+      const setOpen = (open) => {
+        button.setAttribute('aria-expanded', String(open));
+        nav.toggleAttribute('data-open', open);
+      };
+      button.addEventListener('click', () => setOpen(button.getAttribute('aria-expanded') !== 'true'));
+      links.addEventListener('click', (event) => { if (event.target.closest('a')) setOpen(false); });
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && nav.hasAttribute('data-open')) { setOpen(false); button.focus(); }
+      });
+      matchMedia('(min-width: 60.0625em)').addEventListener('change', (event) => { if (event.matches) setOpen(false); });
+    })();
+  </script>
 </body>
 </html>
