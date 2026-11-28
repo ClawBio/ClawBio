@@ -5,6 +5,12 @@ license: MIT
 metadata:
   version: 0.1.0
   author: Manuel Corpas
+  tags:
+  - genomics
+  - population-genetics
+  - ancestry
+  - vcf
+  - introgression
   domain: genomics
   inputs:
   - format: VCF
