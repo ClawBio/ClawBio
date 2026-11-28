@@ -49,9 +49,20 @@ def get_phewas(
     if not isinstance(data, dict):
         return {"source": "finngen", "status": "error", "message": "Unexpected response format"}
 
-    phenos = data.get("phenos", [])
+    results = data.get("results")
+    if (
+        not isinstance(results, list)
+        or not results
+        or not all(isinstance(p, dict) for p in results)
+    ):
+        return {
+            "source": "finngen",
+            "status": "error",
+            "message": "Unexpected response format: missing FinnGen R12 results",
+        }
+
     associations = []
-    for p in phenos:
+    for p in results:
         associations.append({
             "phenocode": p.get("phenocode", ""),
             "phenostring": p.get("phenostring", ""),
@@ -60,8 +71,8 @@ def get_phewas(
             "beta": p.get("beta"),
             "sebeta": p.get("sebeta"),
             "maf": p.get("maf"),
-            "num_cases": p.get("num_cases"),
-            "num_controls": p.get("num_controls"),
+            "num_cases": p.get("n_case") if "n_case" in p else p.get("num_cases"),
+            "num_controls": p.get("n_control") if "n_control" in p else p.get("num_controls"),
         })
 
     return {
