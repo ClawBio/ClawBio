@@ -249,4 +249,7 @@ FHIR_VALID_PHASES = {
 # EU Clinical Trials Register (EUCTR)
 # ---------------------------------------------------------------------------
 
-EUCTR_API = "https://www.clinicaltrialsregister.eu/ctr-search/rest/search?query="
+# EUCTR retired /ctr-search/rest/search (HTTP 404). The HTML search endpoint
+# remains live and serves legacy EudraCT trials; ongoing post-2025 EU/EEA
+# trials moved to CTIS (euclinicaltrials.eu).
+EUCTR_API = "https://www.clinicaltrialsregister.eu/ctr-search/search?query="
