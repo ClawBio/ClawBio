@@ -5,6 +5,11 @@ description: Protein structure prediction with Boltz-2 (default) or OpenFold3. A
 license: MIT
 metadata:
   version: 0.3.0
+  tags:
+  - bioinformatics
+  - genomics
+  - protein-properties
+  - foundation-model
   openclaw:
     requires:
       bins:
