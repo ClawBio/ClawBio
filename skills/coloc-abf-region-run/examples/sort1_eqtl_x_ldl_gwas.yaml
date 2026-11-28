@@ -1,0 +1,29 @@
+# Demo: a cis-eQTL and a lipid GWAS that share one causal variant.
+#
+# Both tables are SYNTHETIC (see make_demo_data.py). The coordinates are a real
+# 200 kb stretch of chromosome 1 on GRCh38, in the region of SORT1, but the
+# statistics attached to them were generated, so this demonstrates the pipeline
+# and the expected call rather than the behaviour of the real locus.
+#
+# Expected: PP.H4 dominates, because one variant was made causal for both traits.
+#
+#   python skills/coloc-abf-region-run/coloc_abf_region_run.py \
+#       --demo sort1_eqtl_x_ldl_gwas --output /tmp/coloc_shared
+
+trait1:
+  sumstats: sumstats/synthetic_eqtl_shared.tsv
+  trait_type: quant
+  sdY: 1.0
+  label: SORT1 expression (synthetic eQTL)
+
+trait2:
+  sumstats: sumstats/synthetic_gwas_shared.tsv
+  trait_type: quant
+  sdY: 1.0
+  label: LDL cholesterol (synthetic GWAS)
+
+# The defaults, written out so they are visible. Omit the block to use them.
+priors:
+  p1: 1.0e-4
+  p2: 1.0e-4
+  p12: 1.0e-5
