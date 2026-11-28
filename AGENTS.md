@@ -203,7 +203,6 @@ ClawBio/
 ├── examples/               # Shared demo data (VCFs, CSVs)
 ├── profiles/               # PatientProfile JSONs
 ├── output/                 # Generated reports (timestamped)
-├── GENOMEBOOK/             # Synthetic-genetics sandbox data and reports
 ├── corpas-30x/             # Corpas 30x WGS reference genome and benchmark inputs
 ├── docs/                   # Tutorials and reference docs
 ├── pyproject.toml          # Dependencies and optional extras (pinned by uv.lock)

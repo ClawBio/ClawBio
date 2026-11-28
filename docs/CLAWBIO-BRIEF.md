@@ -106,9 +106,6 @@ The current public skill inventory in `README.md` spans personal genomics, popul
 | PubMed Summariser | **MVP** | Structured briefings of top recent PubMed papers |
 | Omics Target Evidence Mapper | **MVP** | Aggregate target-level evidence across omics and translational sources |
 | Target Validation Scorer | **MVP** | Evidence-grounded GO/NO-GO target scoring |
-| Soul2DNA | **MVP** | Compile character profiles into synthetic diploid genomes |
-| GenomeMatch | **MVP** | Score genetic compatibility across pairings |
-| Recombinator | **MVP** | Produce offspring via meiotic recombination and mutation |
 | Fine-Mapping | **MVP** | SuSiE/ABF credible sets with posterior inclusion probabilities |
 | Clinical Variant Reporter | **MVP** | ACMG-guided clinical variant classification from VCF |
 | WES Clinical Report | **MVP** | Whole-exome sequencing clinical report generation |

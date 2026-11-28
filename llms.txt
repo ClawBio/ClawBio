@@ -85,8 +85,6 @@
 - [pubmed-summariser](skills/pubmed-summariser/SKILL.md): Structured briefings of top recent PubMed papers
 - [omics-target-evidence-mapper](skills/omics-target-evidence-mapper/SKILL.md): Aggregate public target-level evidence across omics and translational sources
 - [target-validation-scorer](skills/target-validation-scorer/SKILL.md): Evidence-grounded target validation scoring with GO / NO-GO outputs
-- [genome-match](skills/genome-match/SKILL.md): Score genetic compatibility across all pairings in a generation
-- [recombinator](skills/recombinator/SKILL.md): Produce offspring via meiotic recombination, mutation, and clinical evaluation
 - [fine-mapping](skills/fine-mapping/SKILL.md): SuSiE / ABF credible sets and posterior inclusion probabilities
 - [wes-clinical-report-es](skills/wes-clinical-report-es/SKILL.md): Whole-exome sequencing clinical report generation
 
