@@ -30,7 +30,7 @@ metadata:
     format: md
     description: Organ aging analysis report
   dependencies:
-    python: '>=3.11'
+    python: '>=3.12'
     packages:
     - pandas>=2.0
     - numpy>=1.24

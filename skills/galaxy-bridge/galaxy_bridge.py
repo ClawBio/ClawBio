@@ -269,7 +269,6 @@ def _write_reproducibility(
         output_dir,
         env_name="clawbio-galaxy-bridge",
         pip_deps=["bioblend>=1.2"],
-        python_version="3.11",
     )
     paths = [Path(p) for p in outputs]
     if input_path is not None:

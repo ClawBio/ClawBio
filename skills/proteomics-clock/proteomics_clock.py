@@ -390,7 +390,7 @@ def write_reproducibility(output_dir: Path, input_desc: str, command_args: list[
 channels:
   - conda-forge
 dependencies:
-  - python>=3.11
+  - python>=3.12
   - pandas
   - numpy
   - matplotlib

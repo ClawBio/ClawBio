@@ -435,7 +435,6 @@ def main() -> None:
         output_dir,
         env_name="clawbio-omics-target-evidence-mapper",
         pip_deps=["requests", "rocrate"],
-        python_version="3.11",
     )
     ro_crate_path = write_ro_crate(
         output_dir,

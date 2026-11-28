@@ -832,7 +832,7 @@ channels:
   - bioconda
   - defaults
 dependencies:
-  - python=3.11
+  - python=3.12
   - scanpy=1.10.2
   - anndata=0.12.10
   - numpy=1.26.4

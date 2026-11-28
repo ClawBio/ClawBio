@@ -4,7 +4,7 @@ polars_bio_runner.py: Genomic interval operations, multi-format I/O, DataFusion
 SQL, and pileup on Polars DataFrames via polars-bio.
 
 Wraps polars-bio (https://github.com/biodatageeks/polars-bio).
-Requires: uv pip install polars-bio   (Python 3.11-3.14)
+Requires: uv pip install polars-bio   (Python 3.12-3.14)
 
 Citation: Wiewiorka M, Khamutou P, Zbysinski M, Gambin T. polars-bio - fast,
 scalable, and out-of-core operations on large genomic interval datasets.
@@ -76,7 +76,7 @@ def _dependency_error():
     sys.stderr.write(
         "ERROR: polars-bio is not installed.\n"
         "Install it with:  uv pip install polars-bio\n"
-        "Requires Python 3.11-3.14.\n"
+        "Requires Python 3.12-3.14.\n"
     )
     sys.exit(2)
 

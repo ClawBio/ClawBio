@@ -38,7 +38,7 @@ metadata:
         - json
       description: Machine-readable predictions and protein contributions
   dependencies:
-    python: ">=3.11"
+    python: ">=3.12"
     packages:
       - pandas>=2.0
       - numpy>=1.24

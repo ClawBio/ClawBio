@@ -125,7 +125,7 @@ def test_write_reproducibility_bundle(tmp_path):
     assert "--input" in cmd
     env_yml = (repro / "environment.yml").read_text()
     assert "clawbio-multiqc-reporter" in env_yml
-    assert "python=3.11" in env_yml
+    assert "python=3.12" in env_yml
 
 
 def test_write_reproducibility_bundle_demo(tmp_path):

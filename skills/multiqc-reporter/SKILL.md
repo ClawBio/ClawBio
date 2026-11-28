@@ -34,7 +34,7 @@ metadata:
     format: html
     description: Standard MultiQC interactive HTML report
   dependencies:
-    python: '>=3.11'
+    python: '>=3.12'
     external:
     - multiqc>=1.20
   demo_data:

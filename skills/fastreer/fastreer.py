@@ -518,7 +518,6 @@ def write_reproducibility(args, input_file: Path, output_dir: Path) -> None:
         env_name="clawbio-fastreer",
         pip_deps=["fastreer>=2.2.0"],
         conda_deps=["openjdk>=11"],
-        python_version="3.11",
     )
     write_portable_commands_sh(
         output_dir,

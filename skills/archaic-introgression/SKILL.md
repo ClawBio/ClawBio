@@ -177,7 +177,7 @@ output_dir/
 
 ## Dependencies
 
-- Python 3.11+
+- Python 3.12+
 - numpy
 - Optional: IBDmix binary, Sprime JAR, hmmix binary
 - Optional: bcftools (for indexed VCF extraction)

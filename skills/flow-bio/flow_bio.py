@@ -937,7 +937,6 @@ def write_reproducibility(output_dir: Path, flag_args: list[str], flow_url: str)
         output_dir,
         env_name="clawbio-flow-bio",
         pip_deps=["requests>=2.28"],
-        python_version="3.11",
     )
     write_checksums(
         [output_dir / "report.md", output_dir / "result.json"],

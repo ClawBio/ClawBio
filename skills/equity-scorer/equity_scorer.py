@@ -168,7 +168,6 @@ def _write_repro_bundle(
             "scikit-learn>=1.3",
         ],
         pip_deps=[],
-        python_version="3.11",
     )
 
     # Checksum the derived numerical/graphical artefacts only, labelled

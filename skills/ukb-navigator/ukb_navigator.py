@@ -306,7 +306,6 @@ def generate_report(query: str, matches: list[dict], output_dir: Path,
         output_dir,
         env_name="clawbio-ukb-navigator",
         pip_deps=["chromadb", "voyageai"],
-        python_version="3.11",
     )
     args = ["--demo"] if is_demo else ["--query", shlex.quote(query)]
     # Only non-default flags: the recipe should show what this run chose.

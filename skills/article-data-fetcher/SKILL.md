@@ -62,7 +62,7 @@ metadata:
         - md
       description: Human-readable summary of what was found and downloaded
   dependencies:
-    python: ">=3.11"
+    python: ">=3.12"
     packages:
       - requests>=2.31
       - biopython>=1.83

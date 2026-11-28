@@ -79,7 +79,6 @@ def create_reproducibility_bundle(input_file: str, output_dir: str, panel_path: 
     write_environment_yml(
         output_dir,
         env_name="nutrigx",
-        python_version="3.11",
         conda_deps=["numpy>=1.26", "pandas>=2.2", "matplotlib>=3.8", "seaborn>=0.13"],
         pip_deps=["clawbio==0.1.0"],
     )
