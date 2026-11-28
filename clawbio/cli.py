@@ -23,6 +23,7 @@ import difflib
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -1491,6 +1492,56 @@ def resolve_skill_name(name: str) -> str:
     return _folder_aliases().get(name, name)
 
 
+CATALOG_PATH = SKILLS_DIR / "catalog.json"
+
+
+def _catalog_entry(name: str) -> dict | None:
+    """The skills/catalog.json entry for a skill folder name, or None."""
+    try:
+        skills = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))["skills"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return next((s for s in skills if isinstance(s, dict) and s.get("name") == name), None)
+
+
+def _catalog_skill(name: str) -> tuple[dict | None, str | None]:
+    """A catalog skill with no SKILLS entry, as a SKILLS-style entry, or the reason it cannot run.
+
+    It gets only the standard contract: the script's own --input/--output/--demo, and no
+    extra flags (allowed_extra_flags is empty, so INT-001 holds). (None, None) means the
+    catalog has no script for it, and the caller points at its SKILL.md.
+    """
+    entry = _catalog_entry(name)
+    if not entry or not entry.get("script"):
+        return None, None
+    skill_md = SKILLS_DIR / name / "SKILL.md"
+    script = (CLAWBIO_DIR / entry["script"]).resolve()
+    if not script.is_relative_to((SKILLS_DIR / name).resolve()):
+        return None, f"'{name}' has no `clawbio run` entry. Follow its SKILL.md ({skill_md})."
+    if script.suffix != ".py":
+        return None, (
+            f"'{name}' is not a Python skill ({script.name}), and `clawbio run` launches only "
+            f"Python scripts. Follow its SKILL.md ({skill_md})."
+        )
+    flags = set(entry.get("run_flags") or ())
+    if "--output" not in flags:
+        return None, (
+            f"'{name}' has no --output flag, so `clawbio run` cannot keep its files in the "
+            f"output folder. Follow its SKILL.md ({skill_md})."
+        )
+    demo_args = None
+    tokens = shlex.split(entry.get("demo_command") or "")
+    if "--demo" in flags and tokens[1:2] == [entry["script"]]:
+        demo_args = tokens[2:]
+    return {
+        "script": script,
+        "demo_args": demo_args,
+        "run_flags": flags,
+        "skill_md": skill_md,
+        "allowed_extra_flags": set(),
+    }, None
+
+
 def _unknown_skill_message(name: str) -> str:
     skill_md = SKILLS_DIR / name / "SKILL.md"
     if skill_md.is_file():
@@ -1552,7 +1603,10 @@ def list_skills() -> dict:
             )
             indicator = f"{GREEN}has script{RESET}" if has_script else f"{YELLOW}spec only{RESET}"
             print(f"  {DIM}{skill_dir.name:<20}{RESET} Agent-readable skill")
-            print(f"  {'':20} {DIM}[{indicator}] — SKILL.md only (not via clawbio run){RESET}")
+            if _catalog_skill(skill_dir.name)[0]:
+                print(f"  {'':20} {DIM}[{indicator}] — clawbio run, standard flags only{RESET}")
+            else:
+                print(f"  {'':20} {DIM}[{indicator}] — SKILL.md only (not via clawbio run){RESET}")
             print()
     
     total = len(SKILLS) + len(md_only)
@@ -1709,7 +1763,8 @@ def _skill_version(skill_name: str) -> str:
     """The SKILL.md frontmatter version, so an audit record says which methodology ran."""
     script = SKILLS.get(skill_name, {}).get("script")
     if not script:
-        return "unknown"
+        entry = _catalog_entry(skill_name)
+        return str(entry.get("version") or "unknown") if entry else "unknown"
     try:
         return read_skill_manifest(script).version
     except (SkillManifestError, OSError):
@@ -1776,9 +1831,18 @@ def _run_skill(
             timeout=timeout,
         )
 
-    # Validate skill
-    skill_info = SKILLS.get(skill_name)
-    if not skill_info:
+    # Validate skill: a SKILLS entry, else a catalog skill on the standard contract
+    skill_info, refusal = (SKILLS[skill_name], None) if skill_name in SKILLS else _catalog_skill(skill_name)
+    if skill_info and "run_flags" in skill_info:
+        needed = "--demo" if demo else "--input" if input_path or profile_path else None
+        if needed and needed not in skill_info["run_flags"]:
+            refusal = (
+                f"'{skill_name}' has no {needed} flag, so `clawbio run` cannot run it that way. "
+                f"Follow its SKILL.md ({skill_info['skill_md']})."
+            )
+        elif demo and skill_info["demo_args"] is None:
+            refusal = f"'{skill_name}' has no catalog demo. Follow its SKILL.md ({skill_info['skill_md']})."
+    if refusal or not skill_info:
         return {
             "skill": skill_name,
             "success": False,
@@ -1786,17 +1850,18 @@ def _run_skill(
             "output_dir": None,
             "files": [],
             "stdout": "",
-            "stderr": _unknown_skill_message(skill_name),
+            "stderr": refusal or _unknown_skill_message(skill_name),
             "duration_seconds": 0,
         }
 
     script_path = skill_info["script"]
     if not script_path.exists():
-        if skill_name in UNBUNDLED_SKILLS:
+        if skill_name in UNBUNDLED_SKILLS or skill_name not in SKILLS:
+            # A pip install leaves out licence-excluded skills, but the shipped catalog lists them.
+            why = f" ({UNBUNDLED_SKILLS[skill_name]})" if skill_name in UNBUNDLED_SKILLS else ""
             message = (
-                f"'{skill_name}' is not bundled in the installed clawbio package "
-                f"({UNBUNDLED_SKILLS[skill_name]}). Run it from a repository "
-                f"checkout: https://github.com/ClawBio/ClawBio"
+                f"'{skill_name}' is not bundled in the installed clawbio package{why}. "
+                f"Run it from a repository checkout: https://github.com/ClawBio/ClawBio"
             )
         else:
             message = f"Script not found: {script_path}"

@@ -236,6 +236,33 @@ def detect_entry_point(skill_dir: Path, folder_name: str) -> Path | None:
     return None
 
 
+STANDARD_RUN_FLAGS = ("--demo", "--input", "--output")
+
+
+def run_flags(script: Path | None) -> list[str]:
+    """The standard flags (--demo, --input, --output) a Python entry point defines with add_argument.
+
+    `clawbio run` reads this to launch a skill it has no SKILLS entry for, and refuses a
+    run that needs a flag the script lacks. Read from the source, never by running it; a
+    parser built in another module is not seen, so such a skill is refused, not run wrongly.
+    """
+    if script is None or script.suffix != ".py":
+        return []
+    try:
+        tree = ast.parse(script.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError, UnicodeDecodeError, ValueError):
+        return []
+    found = {
+        arg.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "add_argument"
+        for arg in node.args
+        if isinstance(arg, ast.Constant) and arg.value in STANDARD_RUN_FLAGS
+    }
+    return sorted(found)
+
+
 def detect_tests(skill_dir: Path) -> bool:
     """True if the skill ships a test file with something actually in it.
 
@@ -455,6 +482,10 @@ def build_catalog() -> list[dict]:
             "maturity_tier": maturity_tier,
             "maturity_evidence": maturity_evidence,
             "has_script": has_script,
+            # Repo-relative, as in demo_command. `clawbio run` launches it when the
+            # skill has no SKILLS entry, with only the run_flags below.
+            "script": entry_point.relative_to(CLAWBIO_DIR).as_posix() if entry_point else None,
+            "run_flags": run_flags(entry_point),
             "has_tests": has_tests,
             "has_demo": has_demo,
             "demo_command": demo_command,
