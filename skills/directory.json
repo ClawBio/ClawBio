@@ -1302,7 +1302,13 @@
       "description": "Federated variant lookup across 8 genomic databases — GWAS Catalog, Open Targets, PheWeb (UKB, FinnGen, BBJ), GTEx, and more.",
       "version": "0.1.0",
       "trigger_keywords": [],
-      "tags": []
+      "tags": [
+        "genomics",
+        "gwas",
+        "gwas-catalog",
+        "phewas",
+        "summary-statistics"
+      ]
     },
     {
       "name": "gwas-pipeline",

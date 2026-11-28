@@ -2397,7 +2397,13 @@
       "has_demo": true,
       "demo_command": "python clawbio.py run gwas --demo",
       "dependencies": [],
-      "tags": [],
+      "tags": [
+        "genomics",
+        "gwas",
+        "gwas-catalog",
+        "phewas",
+        "summary-statistics"
+      ],
       "trigger_keywords": [
         "GWAS",
         "variant lookup",
