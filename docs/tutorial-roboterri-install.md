@@ -9,7 +9,7 @@ there are Telegram, Discord, and WhatsApp adapters. A browser route through the
 OpenClaw bridge is documented in [docs/custom-domain-webchat.md](custom-domain-webchat.md)
 and is more operationally involved.
 
-**Time**: ~20 minutes | **Difficulty**: Intermediate | **Prerequisites**: Python 3.12+, Telegram for this walkthrough
+**Time**: ~20 minutes | **Difficulty**: Intermediate | **Prerequisites**: Python 3.12–3.14, Telegram for this walkthrough
 
 ---
 
@@ -70,7 +70,7 @@ The bot you'll build:
 
 | Requirement | Version | Check                        |
 |-------------|---------|------------------------------|
-| Python      | 3.12+   | `python3 --version`          |
+| Python      | 3.12–3.14 | `python3 --version`          |
 | pip         | latest  | `pip3 install --upgrade pip` |
 | Git         | any     | `git --version`              |
 | Telegram    | account + app for this walkthrough | [telegram.org](https://telegram.org) |

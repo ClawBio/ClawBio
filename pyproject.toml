@@ -8,7 +8,7 @@ description = "Bioinformatics-native AI agent skill library. Local-first, reprod
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.15"
 dynamic = ["version"]
 authors = [
     { name = "Manuel Corpas", email = "mc.admin@manuelcorpas.com" },
