@@ -20,12 +20,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/affinity-proteomics/affinity_proteomics.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run affprot --demo",
@@ -72,12 +66,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/analyze-fasta/analyze_fasta.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run analyze-fasta --demo",
@@ -135,12 +123,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/ancestry-risk-profiler/ancestry_risk_profiler.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/ancestry-risk-profiler/ancestry_risk_profiler.py --demo --ancestry SAS",
@@ -187,12 +169,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/archaic-introgression/archaic_introgression.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/archaic-introgression/archaic_introgression.py --demo",
@@ -228,8 +204,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/arrayexpress-fetch/arrayexpress_fetch.py",
-      "run_flags": [],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run arrayexpress-fetch --demo",
@@ -273,11 +247,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/article-data-fetcher/article_data_fetcher.py",
-      "run_flags": [
-        "--demo",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/article-data-fetcher/article_data_fetcher.py --demo",
@@ -335,8 +304,6 @@
         "benchmark_validated": false
       },
       "has_script": false,
-      "script": null,
-      "run_flags": [],
       "has_tests": true,
       "has_demo": false,
       "demo_command": null,
@@ -388,8 +355,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/bigquery-public/bigquery_public.py",
-      "run_flags": [],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run bigquery --demo",
@@ -429,11 +394,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/bio-orchestrator/orchestrator.py",
-      "run_flags": [
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/bio-orchestrator/orchestrator.py --demo",
@@ -470,12 +430,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/bioconductor-bridge/bioconductor_bridge.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run bioc --demo",
@@ -530,12 +484,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/bioqc-mcp/bioqc_mcp.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run bioqc --demo",
@@ -581,8 +529,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/biostudies-fetch/biostudies_fetch.py",
-      "run_flags": [],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run biostudies-fetch --demo",
@@ -625,12 +571,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/busco-assessor/busco_assessor.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/busco-assessor/busco_assessor.py --demo",
@@ -686,12 +626,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/cell-detection/cell_detection.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/cell-detection/cell_detection.py --demo",
@@ -736,11 +670,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/celltype-specificity-profiler/profiler.py",
-      "run_flags": [
-        "--demo",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run celltype-specificity-profiler --demo",
@@ -795,8 +724,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/claw-amplicon-qc/amplicon_qc.R",
-      "run_flags": [],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "Rscript skills/claw-amplicon-qc/amplicon_qc.R --demo",
@@ -850,12 +777,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/claw-ancestry-pca/ancestry_pca.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/claw-ancestry-pca/ancestry_pca.py --demo",
@@ -897,12 +818,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/claw-metagenomics/metagenomics_profiler.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run metagenomics --demo",
@@ -944,12 +859,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/claw-methylation-cycle/methylation_cycle.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/claw-methylation-cycle/methylation_cycle.py --demo",
@@ -991,8 +900,6 @@
         "benchmark_validated": false
       },
       "has_script": false,
-      "script": null,
-      "run_flags": [],
       "has_tests": false,
       "has_demo": false,
       "demo_command": null,
@@ -1035,8 +942,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/clawpathy-autoresearch/__main__.py",
-      "run_flags": [],
       "has_tests": false,
       "has_demo": false,
       "demo_command": null,
@@ -1080,12 +985,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/clinical-trial-finder/clinical_trial_finder.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/clinical-trial-finder/clinical_trial_finder.py --demo",
@@ -1132,8 +1031,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/clinical-variant-prioritizer/prioritize.py",
-      "run_flags": [],
       "has_tests": true,
       "has_demo": false,
       "demo_command": null,
@@ -1175,12 +1072,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/clinical-variant-reporter/clinical_variant_reporter.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run acmg --demo",
@@ -1229,11 +1120,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/clinpgx/clinpgx.py",
-      "run_flags": [
-        "--demo",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run clinpgx --demo",
@@ -1270,12 +1156,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/cnv-acmg-classifier/cnv_acmg_classifier.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run cnv-acmg --demo",
@@ -1317,12 +1197,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/crispr-screen-triage/crispr_screen_triage.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run crispr-triage --demo",
@@ -1364,11 +1238,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/data-extractor/data_extractor.py",
-      "run_flags": [
-        "--demo",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run data-extract --demo",
@@ -1396,8 +1265,6 @@
         "benchmark_validated": false
       },
       "has_script": false,
-      "script": null,
-      "run_flags": [],
       "has_tests": false,
       "has_demo": false,
       "demo_command": null,
@@ -1439,12 +1306,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/deepspot-m/deepspot_m.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run deepspot-m --demo",
@@ -1492,12 +1353,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/diff-visualizer/diff_visualizer.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run diffviz --demo",
@@ -1542,12 +1397,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/dnasp/dnasp.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run dnasp --demo",
@@ -1640,8 +1489,6 @@
         "benchmark_validated": false
       },
       "has_script": false,
-      "script": null,
-      "run_flags": [],
       "has_tests": false,
       "has_demo": true,
       "demo_command": "python clawbio.py run drugphoto --demo",
@@ -1681,11 +1528,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/drug-repurposing-screen/drug_repurposing_screen.py",
-      "run_flags": [
-        "--demo",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run repurposing --demo",
@@ -1735,8 +1577,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/ena-fetch/ena_fetch.py",
-      "run_flags": [],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run ena-fetch --demo",
@@ -1783,12 +1623,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/eqtl-catalogue-region-fetch/eqtl_catalogue_region_fetch.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run eqtl-region --demo",
@@ -1833,11 +1667,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/equity-scorer/equity_scorer.py",
-      "run_flags": [
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run equity --demo",
@@ -1878,12 +1707,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/fastreer/fastreer.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run fastreer --demo",
@@ -1938,11 +1761,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/fine-mapping/fine_mapping.py",
-      "run_flags": [
-        "--demo",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/fine-mapping/fine_mapping.py --demo",
@@ -1996,11 +1814,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/flow-bio/flow_bio.py",
-      "run_flags": [
-        "--demo",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run flow --demo",
@@ -2050,12 +1863,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/galaxy-bridge/galaxy_bridge.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run galaxy --demo",
@@ -2106,12 +1913,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/genome-compare/genome_compare.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run compare --demo",
@@ -2155,10 +1956,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/genome-match/genome_match.py",
-      "run_flags": [
-        "--demo"
-      ],
       "has_tests": false,
       "has_demo": true,
       "demo_command": "python skills/genome-match/genome_match.py --demo",
@@ -2199,8 +1996,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/geo-fetch/geo_fetch.py",
-      "run_flags": [],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run geo-fetch --demo",
@@ -2248,8 +2043,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/gi-annotation/gi_annotation.py",
-      "run_flags": [],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/gi-annotation/gi_annotation.py --demo",
@@ -2300,8 +2093,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/gi-chromatin/gi_chromatin.py",
-      "run_flags": [],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/gi-chromatin/gi_chromatin.py --demo",
@@ -2356,8 +2147,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/gi-enhancer/gi_enhancer.py",
-      "run_flags": [],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/gi-enhancer/gi_enhancer.py --demo",
@@ -2409,8 +2198,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/gi-expression/gi_expression.py",
-      "run_flags": [],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/gi-expression/gi_expression.py --demo",
@@ -2460,8 +2247,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/gi-promoter/gi_promoter.py",
-      "run_flags": [],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/gi-promoter/gi_promoter.py --demo",
@@ -2512,8 +2297,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/gi-splice/gi_splice.py",
-      "run_flags": [],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/gi-splice/gi_splice.py --demo",
@@ -2565,12 +2348,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/gwas-catalog-region-fetch/gwas_catalog_region_fetch.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run gwas-region --demo",
@@ -2616,11 +2393,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/gwas-lookup/gwas_lookup.py",
-      "run_flags": [
-        "--demo",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run gwas --demo",
@@ -2664,11 +2436,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/gwas-pipeline/gwas_pipeline.py",
-      "run_flags": [
-        "--demo",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run gwas-pipe --demo",
@@ -2714,12 +2481,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/gwas-prs/gwas_prs.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run prs --demo",
@@ -2756,12 +2517,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/gwas-sumstats-harmonize/gwas_sumstats_harmonize.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run harmonize --demo",
@@ -2807,12 +2562,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/hla-typing/hla_typing.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/hla-typing/hla_typing.py --demo",
@@ -2851,12 +2600,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/igv-validator/igv_validator.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run igv-validator --demo",
@@ -2906,12 +2649,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/illumina-bridge/illumina_bridge.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run illumina --demo",
@@ -2953,8 +2690,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/just-prs-mcp/just_prs_mcp_bridge.py",
-      "run_flags": [],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run just-prs --demo",
@@ -2999,11 +2734,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/labstep/labstep.py",
-      "run_flags": [
-        "--demo",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/labstep/labstep.py --demo",
@@ -3048,12 +2778,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/ld-1000g-region-compute/ld_1000g_region_compute.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run ld-region --demo",
@@ -3100,11 +2824,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/lit-synthesizer/lit_synthesizer.py",
-      "run_flags": [
-        "--demo",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/lit-synthesizer/lit_synthesizer.py --demo",
@@ -3152,8 +2871,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/locuscompare-region-render/locuscompare_region_render.py",
-      "run_flags": [],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run locuscompare-region --demo",
@@ -3208,12 +2925,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/marker-dominance-mapper/marker_dominance_mapper.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run marker-map --demo",
@@ -3254,11 +2965,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/mendelian-randomisation/mendelian_randomisation.py",
-      "run_flags": [
-        "--demo",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run mr --demo",
@@ -3311,12 +3017,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/methylation-clock/methylation_clock.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run methylation --demo",
@@ -3362,12 +3062,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/multiqc-reporter/multiqc_reporter.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/multiqc-reporter/multiqc_reporter.py --demo",
@@ -3416,8 +3110,6 @@
         "benchmark_validated": false
       },
       "has_script": false,
-      "script": null,
-      "run_flags": [],
       "has_tests": false,
       "has_demo": false,
       "demo_command": null,
@@ -3475,12 +3167,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/nfcore-rnaseq-wrapper/nfcore_rnaseq_wrapper.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run rnaseq-pipeline --demo",
@@ -3532,8 +3218,6 @@
         "benchmark_validated": false
       },
       "has_script": false,
-      "script": null,
-      "run_flags": [],
       "has_tests": false,
       "has_demo": false,
       "demo_command": null,
@@ -3584,12 +3268,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/nfcore-sarek-wrapper/nfcore_sarek_wrapper.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run sarek-pipeline --demo",
@@ -3649,12 +3327,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/nfcore-scrnaseq-wrapper/nfcore_scrnaseq_wrapper.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run scrnaseq-pipeline --demo",
@@ -3713,11 +3385,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/nutrigx/nutrigx.py",
-      "run_flags": [
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run nutrigx --demo",
@@ -3771,11 +3438,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/omics-target-evidence-mapper/omics_target_evidence_mapper.py",
-      "run_flags": [
-        "--demo",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/omics-target-evidence-mapper/omics_target_evidence_mapper.py --demo",
@@ -3815,12 +3477,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/organ-aging-studio/organ_aging_studio.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/organ-aging-studio/organ_aging_studio.py --demo",
@@ -3867,12 +3523,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/pathway-enricher/pathway_enricher.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run pathway-enricher --demo",
@@ -3900,12 +3550,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/pharmgx-reporter/pharmgx_reporter.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run pharmgx --demo",
@@ -3950,12 +3594,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/phylogenetics-builder/phylogenetics_builder.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run phylo --demo",
@@ -4003,12 +3641,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/polars-bio/polars_bio_runner.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/polars-bio/polars_bio_runner.py --demo",
@@ -4063,8 +3695,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/pride-fetch/pride_fetch.py",
-      "run_flags": [],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run pride-fetch --demo",
@@ -4112,11 +3742,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/profile-report/profile_report.py",
-      "run_flags": [
-        "--demo",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run profile --demo",
@@ -4159,12 +3784,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/proteomics-clock/proteomics_clock.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/proteomics-clock/proteomics_clock.py --demo",
@@ -4215,12 +3834,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/proteomics-de/proteomics_de.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/proteomics-de/proteomics_de.py --demo",
@@ -4250,11 +3863,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/protocols-io/protocols_io.py",
-      "run_flags": [
-        "--demo",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run protocols-io --demo",
@@ -4297,11 +3905,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/prs-abstain/prs_abstain.py",
-      "run_flags": [
-        "--demo",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run prs-abstain --demo",
@@ -4347,12 +3950,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/prs-applicability-gate/prs_applicability_gate.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run prs-gate --demo",
@@ -4396,12 +3993,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/pubmed-summariser/pubmed_summariser.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run pubmed-summariser --demo",
@@ -4438,11 +4029,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/rare-disease-rnaseq/rare_disease_rnaseq.py",
-      "run_flags": [
-        "--demo",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run rdoutlier --demo",
@@ -4480,12 +4066,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/rare-high-impact-variants/rare_high_impact_variants.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/rare-high-impact-variants/rare_high_impact_variants.py --demo",
@@ -4526,10 +4106,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/recombinator/recombinator.py",
-      "run_flags": [
-        "--demo"
-      ],
       "has_tests": false,
       "has_demo": true,
       "demo_command": "python skills/recombinator/recombinator.py --demo",
@@ -4572,8 +4148,6 @@
         "benchmark_validated": false
       },
       "has_script": false,
-      "script": null,
-      "run_flags": [],
       "has_tests": false,
       "has_demo": false,
       "demo_command": null,
@@ -4601,12 +4175,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/rnaseq-de/rnaseq_de.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run rnaseq --demo",
@@ -4656,12 +4224,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/sample-qc-triage/sample_qc_triage.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run sample-qc --demo",
@@ -4704,12 +4266,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/scrna-embedding/scrna_embedding.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run scrna-embedding --demo",
@@ -4759,12 +4315,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/scrna-embedding-audit/scrna_embedding_audit.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run scrna-embedding-audit --demo",
@@ -4816,12 +4366,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/scrna-orchestrator/scrna_orchestrator.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run scrna --demo",
@@ -4873,11 +4417,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/seq-wrangler/seq_wrangler.py",
-      "run_flags": [
-        "--demo",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/seq-wrangler/seq_wrangler.py --demo",
@@ -4933,12 +4472,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/seqtk-downsample/seqtk_downsample.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run seqtk-downsample --demo",
@@ -4980,12 +4513,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/skill-builder/skill_builder.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/skill-builder/skill_builder.py --demo",
@@ -5027,12 +4554,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/snp-phewas/snp_phewas.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run snp-phewas --demo",
@@ -5083,12 +4604,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/spatial-transcriptomics/spatial_transcriptomics.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run spatial --demo",
@@ -5138,12 +4653,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/struct-predictor/struct_predictor.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/struct-predictor/struct_predictor.py --demo",
@@ -5171,12 +4680,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/target-validation-scorer/target_validation_scorer.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/target-validation-scorer/target_validation_scorer.py --demo",
@@ -5220,11 +4723,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/turingdb-graph/turingdb_graph.py",
-      "run_flags": [
-        "--demo",
-        "--input"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/turingdb-graph/turingdb_graph.py --demo",
@@ -5279,11 +4777,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/ukb-navigator/ukb_navigator.py",
-      "run_flags": [
-        "--demo",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/ukb-navigator/ukb_navigator.py --demo",
@@ -5323,12 +4816,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/ukb-ppp-region-fetch/ukb_ppp_region_fetch.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python clawbio.py run ukb-ppp-region --demo",
@@ -5374,12 +4861,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/variant-annotation/variant_annotation.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/variant-annotation/variant_annotation.py --demo",
@@ -5422,12 +4903,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/vcf-annotator/vcf_annotator.py",
-      "run_flags": [
-        "--demo",
-        "--input",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/vcf-annotator/vcf_annotator.py --demo",
@@ -5476,11 +4951,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/wes-clinical-report-en/wes_clinical_report_en.py",
-      "run_flags": [
-        "--demo",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/wes-clinical-report-en/wes_clinical_report_en.py --demo",
@@ -5522,10 +4992,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/wgs-prs/wgs_prs.py",
-      "run_flags": [
-        "--demo"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/wgs-prs/wgs_prs.py --demo",
@@ -5577,11 +5043,6 @@
         "benchmark_validated": false
       },
       "has_script": true,
-      "script": "skills/xena-tcga-gene-query/scripts/query_tcga_api.py",
-      "run_flags": [
-        "--demo",
-        "--output"
-      ],
       "has_tests": true,
       "has_demo": true,
       "demo_command": "python skills/xena-tcga-gene-query/scripts/query_tcga_api.py --demo",

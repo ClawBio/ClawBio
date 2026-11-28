@@ -112,7 +112,7 @@ def test_folder_without_a_run_entry_says_so():
     # A folder with a script now runs from the catalog; one with none still has no entry.
     folder = next(
         d.name for d in cli._skill_md_only_directories()
-        if not (cli._catalog_entry(d.name) or {}).get("script")
+        if cli.detect_entry_point(d, d.name) is None
     )
     result = cli.run_skill(folder, demo=True)
 
