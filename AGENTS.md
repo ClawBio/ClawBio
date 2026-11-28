@@ -230,7 +230,7 @@ Even skills without Python scripts are usable — an AI agent reads the SKILL.md
 ## Development Rules (STRICT)
 
 **All skill development and modification MUST use red/green TDD:**
-1. Write tests first that define the expected behaviour (for maths and parsing, include a property test; see below)
+1. Write tests first that define the expected behaviour (for maths and parsing, include a property test; for scores and classifications, a known-answer test; see below)
 2. Run the tests and watch them fail (red)
 3. Implement the code to make the tests pass (green)
 4. Run the tests again and confirm they pass
@@ -266,6 +266,23 @@ Keep strategies small and domain-shaped (`st.sampled_from("ACGT")`). Bounded
 `| st.just(float("nan"))` when the code must handle them. Use
 `@settings(deadline=None)` for properties that run a skill end to end;
 Hypothesis's default 200 ms deadline otherwise makes them flaky in CI.
+
+### Known-answer tests for scores and classifications
+
+A property shows the results are consistent with each other, not that the method
+is right. When the code and its tests share a misreading of the source, both agree
+on the wrong answer. For skill code that scores, classifies or calls variants, add
+at least one test whose expected value comes from outside the repo:
+
+| Where the answer comes from | Example |
+|---|---|
+| A table or worked example in the cited method | ClinGen haploinsufficiency score 40 means "dosage sensitivity unlikely", yet `>= 3` let deleting such a gene score Riggs 2020 2A and come out Pathogenic (cnv-acmg-classifier) |
+| A real response from the service, saved with its URL and capture date | FinnGen R12 returns its rows under `results`, but the client read `phenos`. No test fed it a real response, so every lookup reported 0 rows as `OK` (#947) |
+| The function's own documented contract | `parse_vcf_matrix` promises dosages of 0 to 2, but `1/2` gave 3 (#963) |
+
+Cite the source in the test's docstring: the paper and table, the record ID, or
+the URL and date. Never compute the expected value with the code under test or
+copy it from that code's current output.
 
 ## How to Add a New Skill
 
