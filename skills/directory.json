@@ -2414,29 +2414,6 @@
       ]
     },
     {
-      "name": "skill-builder",
-      "slug": "skill-builder",
-      "license": "MIT",
-      "description": "Scaffold a new ClawBio skill from a spec file (JSON/YAML) or interactively — generates SKILL.md, Python skeleton, tests, and updates catalog.json",
-      "version": "0.1.0",
-      "trigger_keywords": [
-        "create skill",
-        "new skill",
-        "scaffold skill",
-        "skill template",
-        "skill builder",
-        "add a skill",
-        "build a skill",
-        "make a skill"
-      ],
-      "tags": [
-        "meta",
-        "scaffolding",
-        "developer-tools",
-        "skill-creation"
-      ]
-    },
-    {
       "name": "snp-phewas",
       "slug": "snp-phewas",
       "license": "MIT",

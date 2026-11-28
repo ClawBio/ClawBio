@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 111,
+  "skill_count": 110,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -4491,47 +4491,6 @@
         "seqtk sample",
         "take 10000 reads from fastq",
         "reduce fastq size for testing"
-      ],
-      "chaining_partners": [],
-      "license": "MIT",
-      "model_license": "",
-      "data_license": ""
-    },
-    {
-      "name": "skill-builder",
-      "cli_alias": null,
-      "description": "Scaffold a new ClawBio skill from a spec file (JSON/YAML) or interactively — generates SKILL.md, Python skeleton, tests, and updates catalog.json",
-      "version": "0.1.0",
-      "status": "planned",
-      "maturity_tier": "tested",
-      "maturity_evidence": {
-        "has_skill_md": true,
-        "has_script": true,
-        "has_tests": true,
-        "has_demo": true,
-        "cli_registered": false,
-        "benchmark_validated": false
-      },
-      "has_script": true,
-      "has_tests": true,
-      "has_demo": true,
-      "demo_command": "python skills/skill-builder/skill_builder.py --demo",
-      "dependencies": [],
-      "tags": [
-        "meta",
-        "scaffolding",
-        "developer-tools",
-        "skill-creation"
-      ],
-      "trigger_keywords": [
-        "create skill",
-        "new skill",
-        "scaffold skill",
-        "skill template",
-        "skill builder",
-        "add a skill",
-        "build a skill",
-        "make a skill"
       ],
       "chaining_partners": [],
       "license": "MIT",
