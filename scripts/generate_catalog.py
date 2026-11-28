@@ -31,9 +31,7 @@ sys.path.insert(0, str(CLAWBIO_DIR))
 # Shared with `clawbio run`, which finds a skill's script the same way at runtime.
 from clawbio.common.skill_entry import (  # noqa: E402
     DEMO_EXTRA_ARGS,
-    ENTRY_POINT_SUFFIXES,
     NO_DEMO,
-    NON_ENTRY_POINT_NAMES,
     detect_entry_point,
 )
 
