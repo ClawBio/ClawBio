@@ -1,0 +1,3 @@
+biosampleName,read1,read2,groups
+synthetic_sampleA,synthetic_sampleA_S1_L001_R1_001.fastq.gz,synthetic_sampleA_S1_L001_R2_001.fastq.gz,control
+synthetic_sampleB,synthetic_sampleB_S1_L001_R1_001.fastq.gz,synthetic_sampleB_S1_L001_R2_001.fastq.gz,treated

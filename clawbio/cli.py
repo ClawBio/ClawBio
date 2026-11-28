@@ -797,6 +797,29 @@ SKILLS = {
         },
         "accepts_genotypes": False,
     },
+    "bj-expression": {
+        "script": SKILLS_DIR / "bj-expression-wrapper" / "bj_expression_wrapper.py",
+        "demo_args": ["--demo"],
+        "description": "Run BioSkryb BJ-Expression (RNA-seq from demultiplexed FASTQ pairs: Salmon, STAR/HTSeq, MultiQC) via Nextflow, with preflight checks and a pinned tag",
+        "default_timeout_seconds": 60 * 60 * 12 + 10 * 60,
+        "extra_path_flags": {"--pipeline-dir", "--extra-config"},
+        "allowed_extra_flags": {
+            "--check", "--pipeline-dir", "--pipeline-version",
+            "--nextflow-version", "--extra-config",
+            "--accept-bioskryb-terms", "--allow-dirty-pipeline",
+            "--genome", "--profile", "--n-reads", "--read-length", "--min-reads",
+            "--seed", "--skip-subsampling", "--skip-cutadapt", "--skip-qc-plots",
+            "--instrument", "--max-cpus", "--max-memory", "--genomes-base",
+            "--resume", "--strict", "--keep-symlinks", "--materialise-only",
+            "--reads-per-file", "--count-reads", "--keep-work",
+        },
+        "allowed_extra_flags_without_values": {
+            "--check", "--accept-bioskryb-terms", "--allow-dirty-pipeline",
+            "--skip-subsampling", "--skip-cutadapt", "--skip-qc-plots", "--resume",
+            "--strict", "--keep-symlinks", "--materialise-only", "--count-reads", "--keep-work",
+        },
+        "accepts_genotypes": False,
+    },
     "rnaseq-pipeline": {
         "script": SKILLS_DIR / "nfcore-rnaseq-wrapper" / "nfcore_rnaseq_wrapper.py",
         "demo_args": ["--demo"],
@@ -2655,7 +2678,7 @@ def main():
         if args.skill == "scrnaseq-pipeline" and _is_scrnaseq_backend_profile(getattr(args, "profile_path", None)):
             skill_backend_profile = args.profile_path
             args.profile_path = None
-        elif args.skill in {"rnaseq-pipeline", "sarek-pipeline"} and getattr(args, "profile_path", None) is not None:
+        elif args.skill in {"rnaseq-pipeline", "sarek-pipeline", "bj-expression"} and getattr(args, "profile_path", None) is not None:
             skill_backend_profile = args.profile_path
             args.profile_path = None
 

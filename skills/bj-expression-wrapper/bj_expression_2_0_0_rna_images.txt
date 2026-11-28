@@ -1,0 +1,22 @@
+# Container images used by the BJ-Expression 2.0.0 RNA-seq path with default
+# settings (skip_10X = true, so the 10x demultiplexing images are not listed).
+# Derived from `NXF_VER=25.04.6 nextflow config <checkout> -flat` at tag 2.0.0,
+# for the processes in the RNA-seq modules. Image names only; all are public
+# (public.ecr.aws and quay.io). Re-derive this list when the pinned tag changes.
+public.ecr.aws/v2u5x5f1/basejumper:count_reads_0.1
+public.ecr.aws/v2u5x5f1/basejumper:custom_r_nf_rnaseq_0.10
+public.ecr.aws/v2u5x5f1/basejumper:custom_r_nf_rnaseq_0.15
+public.ecr.aws/v2u5x5f1/basejumper:custom_r_nf_rnaseq_0.9
+public.ecr.aws/v2u5x5f1/basejumper:custom_r_qcplots_0.1.6
+public.ecr.aws/v2u5x5f1/basejumper:gene_body_coverage_0.2.1
+public.ecr.aws/v2u5x5f1/basejumper:rnaseq_celltype_0.4
+public.ecr.aws/v2u5x5f1/basejumper:ubuntu_24.04_stable
+quay.io/biocontainers/cutadapt:4.9--py311hdad781d_2
+quay.io/biocontainers/fastp:0.20.1--h8b12597_0
+quay.io/biocontainers/htseq:0.13.5--py38h803c66d_1
+quay.io/biocontainers/multiqc:1.28--pyhdfd78af_0
+quay.io/biocontainers/qualimap:2.2.2d--1
+quay.io/biocontainers/salmon:1.6.0--h84f40af_0
+quay.io/biocontainers/samtools:1.10--h2e538c0_3
+quay.io/biocontainers/seqtk:1.3--h5bf99c6_3
+quay.io/biocontainers/star:2.7.6a--0

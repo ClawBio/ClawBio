@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 111,
+  "skill_count": 112,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -554,6 +554,48 @@
       "license": "MIT",
       "model_license": "",
       "data_license": "CC0-1.0"
+    },
+    {
+      "name": "bj-expression-wrapper",
+      "cli_alias": "bj-expression",
+      "description": "Run BioSkryb's BJ-Expression RNA-seq pipeline (seqtk, fastp, Salmon, STAR, HTSeq, Qualimap, MultiQC) on demultiplexed FASTQ pairs through Nextflow, with preflight checks, a pinned tag and a reproducibility bundle.",
+      "version": "0.1.0",
+      "status": "planned",
+      "maturity_tier": "cli-registered",
+      "maturity_evidence": {
+        "has_skill_md": true,
+        "has_script": true,
+        "has_tests": true,
+        "has_demo": true,
+        "cli_registered": true,
+        "benchmark_validated": false
+      },
+      "has_script": true,
+      "has_tests": true,
+      "has_demo": true,
+      "demo_command": "python clawbio.py run bj-expression --demo",
+      "dependencies": [
+        "python>=3.11"
+      ],
+      "tags": [
+        "rnaseq",
+        "nextflow",
+        "bioskryb",
+        "salmon",
+        "star",
+        "htseq"
+      ],
+      "trigger_keywords": [
+        "bj-expression",
+        "bioskryb rnaseq",
+        "basejumper expression",
+        "rnaseq from demultiplexed fastq pairs",
+        "salmon star htseq pipeline"
+      ],
+      "chaining_partners": [],
+      "license": "MIT",
+      "model_license": "",
+      "data_license": ""
     },
     {
       "name": "busco-assessor",

@@ -304,6 +304,28 @@
       ]
     },
     {
+      "name": "bj-expression-wrapper",
+      "slug": "bj-expression-wrapper",
+      "license": "MIT",
+      "description": "Run BioSkryb's BJ-Expression RNA-seq pipeline (seqtk, fastp, Salmon, STAR, HTSeq, Qualimap, MultiQC) on demultiplexed FASTQ pairs through Nextflow, with preflight checks, a pinned tag and a reproducibility bundle.",
+      "version": "0.1.0",
+      "trigger_keywords": [
+        "bj-expression",
+        "bioskryb rnaseq",
+        "basejumper expression",
+        "rnaseq from demultiplexed fastq pairs",
+        "salmon star htseq pipeline"
+      ],
+      "tags": [
+        "rnaseq",
+        "nextflow",
+        "bioskryb",
+        "salmon",
+        "star",
+        "htseq"
+      ]
+    },
+    {
       "name": "busco-assessor",
       "slug": "busco-assessor",
       "license": "MIT",
