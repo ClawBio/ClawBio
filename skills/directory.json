@@ -1046,28 +1046,6 @@
       ]
     },
     {
-      "name": "genome-match",
-      "slug": "genome-match",
-      "license": "MIT",
-      "description": "Score genetic compatibility across all male-female pairings in a Genomebook generation",
-      "version": "0.1.0",
-      "trigger_keywords": [
-        "genome match",
-        "compatibility",
-        "mating pairs",
-        "genomebook match",
-        "heterozygosity score",
-        "breeding pairs"
-      ],
-      "tags": [
-        "genomebook",
-        "compatibility",
-        "heterozygosity",
-        "disease-risk",
-        "mating-selection"
-      ]
-    },
-    {
       "name": "geo-fetch",
       "slug": "geo-fetch",
       "license": "MIT",
@@ -2188,30 +2166,6 @@
         "loss-of-function",
         "variant-burden",
         "lof"
-      ]
-    },
-    {
-      "name": "recombinator",
-      "slug": "recombinator",
-      "license": "MIT",
-      "description": "Produce offspring genomes from parent pairs via meiotic recombination, mutation, and clinical evaluation",
-      "version": "0.1.0",
-      "trigger_keywords": [
-        "recombinator",
-        "recombination",
-        "offspring",
-        "breed",
-        "meiosis",
-        "genomebook breed",
-        "next generation"
-      ],
-      "tags": [
-        "genomebook",
-        "recombination",
-        "meiosis",
-        "mutation",
-        "offspring",
-        "clinical-genetics"
       ]
     },
     {

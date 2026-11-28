@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "generated_by": "scripts/generate_catalog.py",
-  "skill_count": 111,
+  "skill_count": 109,
   "galaxy_tool_count": 8182,
   "skills": [
     {
@@ -1936,46 +1936,6 @@
         "claw-ancestry-pca",
         "profile-report"
       ],
-      "license": "MIT",
-      "model_license": "",
-      "data_license": ""
-    },
-    {
-      "name": "genome-match",
-      "cli_alias": null,
-      "description": "Score genetic compatibility across all male-female pairings in a Genomebook generation",
-      "version": "0.1.0",
-      "status": "planned",
-      "maturity_tier": "scripted",
-      "maturity_evidence": {
-        "has_skill_md": true,
-        "has_script": true,
-        "has_tests": false,
-        "has_demo": true,
-        "cli_registered": false,
-        "benchmark_validated": false
-      },
-      "has_script": true,
-      "has_tests": false,
-      "has_demo": true,
-      "demo_command": "python skills/genome-match/genome_match.py --demo",
-      "dependencies": [],
-      "tags": [
-        "genomebook",
-        "compatibility",
-        "heterozygosity",
-        "disease-risk",
-        "mating-selection"
-      ],
-      "trigger_keywords": [
-        "genome match",
-        "compatibility",
-        "mating pairs",
-        "genomebook match",
-        "heterozygosity score",
-        "breeding pairs"
-      ],
-      "chaining_partners": [],
       "license": "MIT",
       "model_license": "",
       "data_license": ""
@@ -4084,48 +4044,6 @@
         "count",
         "rare,",
         "high-impact"
-      ],
-      "chaining_partners": [],
-      "license": "MIT",
-      "model_license": "",
-      "data_license": ""
-    },
-    {
-      "name": "recombinator",
-      "cli_alias": null,
-      "description": "Produce offspring genomes from parent pairs via meiotic recombination, mutation, and clinical evaluation",
-      "version": "0.1.0",
-      "status": "planned",
-      "maturity_tier": "scripted",
-      "maturity_evidence": {
-        "has_skill_md": true,
-        "has_script": true,
-        "has_tests": false,
-        "has_demo": true,
-        "cli_registered": false,
-        "benchmark_validated": false
-      },
-      "has_script": true,
-      "has_tests": false,
-      "has_demo": true,
-      "demo_command": "python skills/recombinator/recombinator.py --demo",
-      "dependencies": [],
-      "tags": [
-        "genomebook",
-        "recombination",
-        "meiosis",
-        "mutation",
-        "offspring",
-        "clinical-genetics"
-      ],
-      "trigger_keywords": [
-        "recombinator",
-        "recombination",
-        "offspring",
-        "breed",
-        "meiosis",
-        "genomebook breed",
-        "next generation"
       ],
       "chaining_partners": [],
       "license": "MIT",
