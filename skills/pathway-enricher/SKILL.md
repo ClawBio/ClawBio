@@ -1,6 +1,6 @@
 ---
 name: pathway-enricher
-description: Gene-set pathway enrichment analysis using Enrichr — queries KEGG, GO (BP/MF/CC), Reactome, WikiPathways, MSigDB, and Disease Ontology. Produces ranked pathway tables, interactive bubble charts, and a reproducible Markdown report.
+description: Gene-set pathway enrichment analysis using Enrichr — queries KEGG, GO (BP/MF/CC), Reactome and WikiPathways. Produces ranked pathway tables, bubble charts, and a reproducible Markdown report.
 license: MIT
 metadata:
   version: 0.1.0
@@ -27,16 +27,16 @@ metadata:
 
 # 🔬 Pathway Enricher
 
-You are **Pathway Enricher**, a specialised ClawBio agent for gene-set pathway enrichment analysis. Your role is to take a list of genes (from GWAS, differential expression, or any omics study) and identify significantly enriched biological pathways and processes using the Enrichr REST API — all locally, with no data leaving the machine.
+You are **Pathway Enricher**, a specialised ClawBio agent for gene-set pathway enrichment analysis. Your role is to take a list of genes (from GWAS, differential expression, or any omics study) and identify significantly enriched biological pathways and processes using the public Enrichr REST API. The gene symbols are sent to Enrichr; nothing else leaves the machine.
 
 ## Core Capabilities
 
 1. **Multi-database enrichment**: Query 6 curated pathway databases in a single run (KEGG, GO Biological Process, GO Molecular Function, GO Cellular Component, Reactome, WikiPathways)
 2. **Statistical ranking**: Sort pathways by combined score (Enrichr's log-p × z-score) and corrected p-value
 3. **Bubble chart visualisation**: Plot enriched pathways as a publication-quality bubble chart (x = combined score, y = pathway, bubble size = gene count)
-4. **Bar chart summary**: Compact top-15 bar chart per database coloured by adjusted p-value
+4. **Bar chart summary**: Compact top-8 bar chart per database coloured by adjusted p-value
 5. **Markdown report**: Rich structured report with embedded figures and ranked tables
-6. **Reproducibility pack**: `commands.sh`, input checksums, environment YAML
+6. **Reproducibility pack**: `commands.sh`, `result.json` checksum, environment YAML
 
 ## Trigger
 
@@ -59,14 +59,18 @@ This skill is strictly limited to querying Enrichr databases for gene-set enrich
 
 ## Databases Queried
 
-| Database | Enrichr Library Name | Coverage |
-|----------|---------------------|----------|
-| KEGG 2021 Human | `KEGG_2021_Human` | 340 pathways |
-| GO Biological Process | `GO_Biological_Process_2023` | 7,658 terms |
-| GO Molecular Function | `GO_Molecular_Function_2023` | 1,936 terms |
-| GO Cellular Component | `GO_Cellular_Component_2023` | 1,000 terms |
-| Reactome 2022 | `Reactome_2022` | 2,372 pathways |
-| WikiPathways 2023 | `WikiPathways_2023_Human` | 881 pathways |
+| Database | Enrichr Library Name | Terms |
+|----------|---------------------|-------|
+| KEGG 2021 Human | `KEGG_2021_Human` | 320 |
+| GO Biological Process | `GO_Biological_Process_2023` | 5,407 |
+| GO Molecular Function | `GO_Molecular_Function_2023` | 1,147 |
+| GO Cellular Component | `GO_Cellular_Component_2023` | 474 |
+| Reactome 2022 | `Reactome_2022` | 1,818 |
+| WikiPathways 2023 Human | `WikiPathway_2023_Human` | 801 |
+
+Term counts are Enrichr's `numTerms` from `GET /Enrichr/datasetStatistics`, read 2026-11-26.
+Newer libraries exist (e.g. `KEGG_2026`, `GO_Biological_Process_2026`,
+`Reactome_Pathways_2024`, `WikiPathways_2024_Human`); these pins are not the latest.
 
 ## Workflow
 
@@ -78,7 +82,7 @@ When the user provides a gene list:
 4. **Parse & rank**: Extract term, p-value, adjusted p-value, z-score, combined score, overlapping genes
 5. **Filter**: Keep terms with adjusted p-value < 0.05 (or all if nothing passes, with a warning)
 6. **Visualise**: Generate bubble chart + bar chart per database
-7. **Report**: Write `report.md` with embedded base64 figures and ranked tables
+7. **Report**: Write `report.md` with linked figures and ranked tables. A library whose query failed is marked **Query failed** in the report and listed in `result.json` under `failed_databases`; if every library fails the run exits 1
 
 ## Example Queries
 
@@ -131,7 +135,7 @@ output_directory/
 
 **Required**:
 - `requests` >= 2.28 (Enrichr REST API client)
-- Python 3.10+
+- Python 3.12+
 
 **Optional**:
 - `matplotlib` >= 3.5 (figures; skipped gracefully if absent)
@@ -143,7 +147,7 @@ output_directory/
 - All processing is local — gene symbols are the only data sent to the public Enrichr API (no patient identifiers, no genotype data)
 - API queries use only HGNC gene symbols (no sensitive information transmitted)
 - Results cached locally in the output directory
-- Graceful degradation: failed API queries produce warnings, not crashes
+- Graceful degradation: a failed library query is reported as failed (report and `result.json`), never as zero enriched terms
 - Rate limiting respected (0.5 s delay between library queries)
 
 ## Gotchas
@@ -151,11 +155,12 @@ output_directory/
 - **The model will want to** interpret the p-values as absolute proof of disease. **Do not.** Here is why: Enrichment is statistical overrepresentation, not diagnostic proof.
 - **The model will want to** submit thousands of genes at once. **Do not.** Here is why: Enrichr has limits on input size. Recommend the user filter their DE list to the top 500-1000 significant genes before running.
 - **The model will want to** try querying custom unlisted databases. **Do not.** Here is why: The script only supports the 6 hardcoded databases (KEGG, GO, Reactome, WikiPathways) for stability.
+- **The model will want to** read a database with no rows as "nothing enriched". **Do not** unless `failed_databases` in `result.json` is empty. Here is why: Enrichr answers a library name it does not serve with an empty object and HTTP 200. Until 2026-11 the WikiPathways id was misspelt (`WikiPathways_2023_Human`) and every run reported zero WikiPathways terms.
 
 ## Agent Boundary
 
 **What the LLM Agent does**: Identifies the gene list from user input, suggests pathway analysis, executes the skill, and summarizes the high-level findings (e.g., "The top pathways point towards immune response").
-**What the Skill Script does**: Handles all HTTP requests to Enrichr, calculates the FDR/adjusted p-values, formats the tables, and generates the matplotlib charts.
+**What the Skill Script does**: Handles all HTTP requests to Enrichr (which computes the p-values and Benjamini–Hochberg adjusted p-values server-side), formats the tables, and generates the matplotlib charts.
 
 ## Integration with Bio Orchestrator
 

@@ -84,14 +84,15 @@ DISCLAIMER = (
 
 ENRICHR_BASE = "https://maayanlab.cloud/Enrichr"
 
-# Library → friendly display name
-LIBRARIES: dict[str, str] = {
+# Library → friendly display name. Every id must be a libraryName Enrichr serves
+# (GET {ENRICHR_BASE}/datasetStatistics); an unknown name is answered with {}.
+LIBRARIES: dict[str, tuple[str, str]] = {
     "kegg": ("KEGG_2021_Human", "KEGG 2021 Human"),
     "go_bp": ("GO_Biological_Process_2023", "GO Biological Process 2023"),
     "go_mf": ("GO_Molecular_Function_2023", "GO Molecular Function 2023"),
     "go_cc": ("GO_Cellular_Component_2023", "GO Cellular Component 2023"),
     "reactome": ("Reactome_2022", "Reactome 2022"),
-    "wikipathways": ("WikiPathways_2023_Human", "WikiPathways 2023"),
+    "wikipathways": ("WikiPathway_2023_Human", "WikiPathways 2023"),
 }
 
 # Demo gene list — Alzheimer's Disease hallmark genes
@@ -111,6 +112,10 @@ RATE_LIMIT_DELAY = 0.5      # seconds between library queries
 # ===========================================================================
 # Enrichr API helpers
 # ===========================================================================
+
+class EnrichrLibraryError(RuntimeError):
+    """Enrichr gave no result entry for the requested library."""
+
 
 def _post_gene_list(genes: list[str], description: str = "ClawBio gene set") -> str:
     """Upload a gene list to Enrichr and return the userListId."""
@@ -149,7 +154,15 @@ def _query_library(user_list_id: str, library: str) -> list[dict[str, Any]]:
     params = {"userListId": user_list_id, "backgroundType": library}
     resp = requests.get(url, params=params, timeout=30)
     resp.raise_for_status()
-    raw = resp.json().get(library, [])
+    data = resp.json()
+    if library not in data:
+        # Enrichr answers a library name it does not serve with {} (HTTP 200).
+        # Reading that as "no enriched terms" would report a silent false negative.
+        raise EnrichrLibraryError(
+            f"Enrichr returned no entry for library {library!r}; "
+            "the name may be wrong or the library retired"
+        )
+    raw = data[library]
     results: list[dict[str, Any]] = []
     for row in raw:
         results.append(
@@ -167,10 +180,17 @@ def _query_library(user_list_id: str, library: str) -> list[dict[str, Any]]:
     return results
 
 
-def run_enrichr(genes: list[str], database_keys: list[str]) -> dict[str, list[dict]]:
-    """Upload genes to Enrichr and query the requested databases."""
+def run_enrichr(
+    genes: list[str], database_keys: list[str]
+) -> tuple[dict[str, list[dict]], dict[str, str]]:
+    """Upload genes to Enrichr and query the requested databases.
+
+    Returns (results, failures). A library whose query failed has an empty list in
+    results and its reason in failures, so a failure is never read as "no terms".
+    """
     user_list_id = _post_gene_list(genes)
     results: dict[str, list[dict]] = {}
+    failures: dict[str, str] = {}
     for key in database_keys:
         lib_id, lib_name = LIBRARIES[key]
         logger.info("Querying %s …", lib_name)
@@ -181,8 +201,9 @@ def run_enrichr(genes: list[str], database_keys: list[str]) -> dict[str, list[di
         except Exception as exc:  # noqa: BLE001
             logger.warning("  ✗ %s failed: %s", lib_name, exc)
             results[key] = []
+            failures[key] = str(exc)
         time.sleep(RATE_LIMIT_DELAY)
-    return results
+    return results, failures
 
 
 # ===========================================================================
@@ -413,14 +434,18 @@ def build_report(
     figures: dict[str, Path],
     output_dir: Path,
     run_ts: str,
+    failures: dict[str, str] | None = None,
 ) -> str:
+    failures = failures or {}
     _, lib_names = zip(*[LIBRARIES[k] for k in database_keys]) if database_keys else ([], [])
 
     sig_counts = {
         k: sum(1 for r in all_results.get(k, []) if r["adj_pvalue"] < ADJ_P_THRESHOLD)
         for k in database_keys
+        if k not in failures
     }
     total_sig = sum(sig_counts.values())
+    failed_names = [LIBRARIES[k][0] for k in database_keys if k in failures]
 
     sections = [
         f"# 🔬 Pathway Enrichment Report\n",
@@ -431,6 +456,7 @@ def build_report(
         f"| Parameter | Value |\n|-----------|-------|\n"
         f"| Gene list size | **{len(genes)} genes** |\n"
         f"| Databases queried | {', '.join(lib_names)} |\n"
+        f"| Databases that failed (results missing) | {', '.join(failed_names) or 'none'} |\n"
         f"| Total significant pathways (adj. p < 0.05) | **{total_sig}** |\n",
         "\n**Input genes:** " + _fmt_genes(genes) + "\n",
         "---\n",
@@ -446,8 +472,14 @@ def build_report(
     for key in database_keys:
         _, lib_name = LIBRARIES[key]
         rows = all_results.get(key, [])
-        n_sig = sig_counts[key]
         sections.append(f"---\n\n## {lib_name}\n")
+        if key in failures:
+            sections.append(
+                f"**Query failed:** {failures[key]}. These results are missing, "
+                "not empty: do not read this as no enrichment.\n\n"
+            )
+            continue
+        n_sig = sig_counts[key]
         sections.append(f"**Significant terms (adj. p < 0.05):** {n_sig}\n\n")
         if f"bubble_{key}" in figures:
             sections.append(_figure_md(figures[f"bubble_{key}"], output_dir, f"Bubble chart — {lib_name}"))
@@ -520,9 +552,12 @@ def build_result_json(
     all_results: dict[str, list[dict]],
     database_keys: list[str],
     run_ts: str,
+    failures: dict[str, str] | None = None,
 ) -> dict[str, Any]:
+    failures = failures or {}
+    ok_keys = [k for k in database_keys if k not in failures]
     top_per_db: dict[str, Any] = {}
-    for key in database_keys:
+    for key in ok_keys:
         rows = all_results.get(key, [])
         sig = [r for r in rows if r["adj_pvalue"] < ADJ_P_THRESHOLD]
         top = (sig or rows)[:5]
@@ -534,10 +569,11 @@ def build_result_json(
         "run_timestamp": run_ts,
         "input_genes": genes,
         "databases_queried": database_keys,
+        "failed_databases": failures,
         "top_results": top_per_db,
         "significant_counts": {
             k: sum(1 for r in all_results.get(k, []) if r["adj_pvalue"] < ADJ_P_THRESHOLD)
-            for k in database_keys
+            for k in ok_keys
         },
     }
 
@@ -620,12 +656,16 @@ def main(argv: list[str] | None = None) -> int:
     # ----- Enrichr query -------------------------------------------------------
     logger.info("Submitting %d genes to Enrichr …", len(genes))
     try:
-        all_results = run_enrichr(genes, database_keys)
+        all_results, failures = run_enrichr(genes, database_keys)
     except requests.exceptions.ConnectionError:
         logger.error("Cannot reach Enrichr API. Check your internet connection.")
         return 1
     except requests.exceptions.HTTPError as exc:
         logger.error("Enrichr API error: %s", exc)
+        return 1
+
+    if failures and len(failures) == len(database_keys):
+        logger.error("Every Enrichr library query failed: %s", failures)
         return 1
 
     # ----- Tables --------------------------------------------------------------
@@ -657,12 +697,13 @@ def main(argv: list[str] | None = None) -> int:
         logger.warning("matplotlib/numpy/pandas not installed — skipping figures. Install with: pip install matplotlib numpy pandas")
 
     # ----- Markdown report -----------------------------------------------------
-    report_md = build_report(genes, all_results, database_keys, figures, output_dir, run_ts)
+    report_md = build_report(genes, all_results, database_keys, figures, output_dir, run_ts,
+                             failures=failures)
     (output_dir / "report.md").write_text(report_md)
     logger.info("Saved report → %s/report.md", output_dir)
 
     # ----- result.json ---------------------------------------------------------
-    result = build_result_json(genes, all_results, database_keys, run_ts)
+    result = build_result_json(genes, all_results, database_keys, run_ts, failures=failures)
     (output_dir / "result.json").write_text(json.dumps(result, indent=2))
 
     # ----- Reproducibility pack ------------------------------------------------
