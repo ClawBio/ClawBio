@@ -45,12 +45,12 @@ dependencies = [
     "biopython>=1.88",
     "conda-lock>=4.1.0",
     "matplotlib>=3.11.2",
-    "numpy>=2.5.4",
-    "openai>=3.49.0",
+    "numpy>=2.5.5",
+    "openai>=3.57.0",
     "opentelemetry-sdk>=1.45.2,<2",
     "pandas>=3.1.1",
-    "pyyaml>=6.0",
-    "pydeseq2>=0.4",
+    "pyyaml>=6.0.4",
+    "pydeseq2>=0.6.0",
     "rocrate>=0.16.0",
     "scikit-learn>=1.9.1",
     "scipy>=1.18.1",
@@ -59,8 +59,8 @@ dependencies = [
 
 [project.optional-dependencies]
 just-prs = [
-    "fastmcp>=4.1.8,<5",
-    "typer>=0.29.0,<1",
+    "fastmcp>=4.2.4,<5",
+    "typer>=0.29.2,<1",
 ]
 # SuShiE fine-mapping engine (jax-based) for skills/fine-mapping.
 # sushie pulls glimix-core itself; see the liknorm override under [tool.uv]
@@ -83,7 +83,7 @@ region-fetch = ["pysam>=0.22"]
 # deliberately absent, because torch's default Linux wheels pull the CUDA
 # runtime into every matrix job; the four tests that need it skip instead.
 cell-detection = [
-    "tifffile>=2026.11.8",
+    "tifffile>=2026.11.16",
     "scikit-image>=0.24",
 ]
 # Imported lazily by these skills but previously undeclared, so `uv.lock` never
@@ -98,7 +98,7 @@ drug-repurposing-screen = ["pyarrow>=26.0.1"]
 # co-occurrence) are implemented in the skill against the same estimators
 # Squidpy documents, so the analysis does not need that stack.
 spatial = [
-    "scanpy>=1.12.5",
+    "scanpy>=1.12.6",
     "leidenalg>=0.10",
 ]
 # celltypist for skills/scrna-orchestrator's optional --annotate celltypist.
@@ -107,12 +107,12 @@ spatial = [
 scrna = ["celltypist>=1.7", "scanpy[scrublet]"]
 # cv2 for skills/data-extractor's axis calibration (data_extractor_core/cv_calibration.py).
 data-extractor = [
-    "opencv-python-headless>=5.0.0.93",
+    "opencv-python-headless>=5.1.0.95",
 ]
 # Python BigQuery client for skills/bigquery-public, which imports it lazily
 # and falls back to the `bq` CLI when it is absent.
 bigquery = [
-    "google-auth>=2.62.2,<3",
+    "google-auth>=2.63.0,<3",
     "google-cloud-bigquery>=3.47.0,<4",
 ]
 
@@ -152,12 +152,12 @@ Issues = "https://github.com/ClawBio/ClawBio/issues"
 
 [dependency-groups]
 dev = [
-    "hypothesis>=6.170.15",
+    "hypothesis>=6.170.17",
     "pytest>=9.2.0",
     "skills-ref>=0.1.1,<1",
     # prs-abstain tests inspect the rendered PDFs.
-    "pypdf>=7.0.1,<8",
-    "inline-snapshot>=0.36.2",
+    "pypdf>=7.1.1,<8",
+    "inline-snapshot>=0.37.0",
     "pytest-xdist>=3.8.0",
 ]
 
