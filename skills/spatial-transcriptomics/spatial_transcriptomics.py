@@ -79,9 +79,7 @@ REPLAY_PACKAGES = (
 
 
 def _load_sibling(name: str):
-    spec = importlib.util.spec_from_file_location(
-        f"clawbio_{name}", SKILL_DIR / f"{name}.py"
-    )
+    spec = importlib.util.spec_from_file_location(name, SKILL_DIR / f"{name}.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
