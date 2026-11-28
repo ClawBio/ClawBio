@@ -51,7 +51,7 @@ so the list cannot silently fall behind the code.
 | 2 | Query terms you typed: gene symbols, rsIDs, regions, drug names, trial IDs, SQL, free text. | `clinpgx` looking up a gene and drug |
 | 3 | Your variants: chromosome, position and alleles read from your VCF or genotype file, sometimes as HGVS strings or rsIDs. No sample identifier is sent, but a set of variants can identify a person on its own. | `vcf-annotator` sending each variant to Ensembl VEP |
 | 4 | Whole sequences or files uploaded to a third-party service or a hosted model. | `gi-annotation` uploading a FASTA sequence |
-| 5 | Your chat messages, photos and voice notes to a hosted language model. | The RoboTerri bot |
+| 5 | Your chat messages, photos and voice notes to a hosted language model. | Whichever agent host you chat to ClawBio through |
 
 ## Class 3: skills that send your variants
 
@@ -183,16 +183,13 @@ test the hosts where the script will actually run. And `geo-fetch` reads run
 metadata from **ENA**, so the samplesheets it writes carry
 `ftp.sra.ebi.ac.uk` URLs even though the skill itself only touched NCBI hosts.
 
-## Class 5: the RoboTerri bot
+## Class 5: agent hosts
 
-`bot/` (Telegram, Discord and WhatsApp adapters) is an optional conversational
-interface, not part of the skill library. Every message, photo and voice note
-you send it goes to the language model at `LLM_BASE_URL` using `LLM_API_KEY`
-(falling back to `OPENAI_API_KEY`); the default model is `gemini-2.0-flash`
-through an OpenAI-compatible endpoint, and voice replies use the `tts-1` model
-on the same key. The messaging platforms themselves see every message by
-construction. `drug-photo` has no code of its own: the photo is interpreted by
-the vision model of whichever agent is driving the skill.
+ClawBio does not ship a chat bot. Whichever agent host you use to drive ClawBio (Claude Code,
+an OpenClaw gateway, Hermes Agent, or a local model) sends your messages, photos and voice notes
+to its own language-model provider, and any messaging platform it runs on sees every message by
+construction. Check that host's own data handling. `drug-photo` has no code of its own: the photo
+is interpreted by the vision model of whichever agent is driving the skill.
 
 ## Viewer assets
 

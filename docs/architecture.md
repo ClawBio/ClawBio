@@ -11,7 +11,7 @@ agent. Each layer has a narrow responsibility:
 
 | Layer | Main Files / Components | Responsibility |
 |-------|-------------------------|----------------|
-| Interfaces | CLI, Python API, RoboTerri, Discord, OpenClaw gateway, Claude Code | Accept a user request, collect files, and either name a skill directly or ask for routing. |
+| Interfaces | CLI, Python API, OpenClaw gateway, Claude Code | Accept a user request, collect files, and either name a skill directly or ask for routing. |
 | Skill self-description | `skills/<name>/SKILL.md`, optional `skills/<name>/INTENTS.json`, `skills/catalog.json` | Describe what the skill does, what inputs it accepts, how it is invoked, and when it should be considered. |
 | Routing and planning | `skills/bio-orchestrator/`, `clawbio/skill_intents.py`, `docs/skill-intents.md` | Detect file types, headers, keywords, and structured intent descriptors; select a suitable skill or plan a small chain. |
 | Runner and safety gate | `clawbio.py` / `clawbio.run_skill()` | Validate the selected skill, enforce allowed flags, prepare output directories, and launch the skill script. |

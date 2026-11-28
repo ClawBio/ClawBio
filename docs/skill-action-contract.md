@@ -1,5 +1,9 @@
 # Skill Action Contract
 
+> **Note:** RoboTerri, the Telegram, Discord and WhatsApp bot this page describes as the chat
+> adapter, has been removed from ClawBio. The skill-side contract and the runner behaviour below are
+> unchanged, and any agent host can consume them; the adapter passages describe how RoboTerri used them.
+
 ClawBio skills usually end by writing a report. The structured action contract
 lets a skill also say what can sensibly happen next.
 
@@ -514,26 +518,7 @@ For a concrete implementation, see:
   pattern, including how `state_id` is derived.
 - `skills/affinity-proteomics/tests/test_affinity_proteomics.py` for emission,
   valid-action, and stale-rejection tests.
-- `tests/test_action_offers.py` and `tests/test_clawbio_runner_actions.py` for
-  rendering and runner-promotion tests.
-
-## Chat Scope
-
-Pending actions remain scoped exactly as they were before this contract:
-
-| Adapter                          | Pending action scope |
-|----------------------------------|----------------------|
-| Telegram (`roboterri.py`)        | `chat_id`            |
-| Discord (`roboterri_discord.py`) | `channel_id`         |
-
-That means two different Telegram chats, or two different Discord channels, do
-not share pending action bundles.
-
-## Known Limitations
-
-In a shared Discord channel, two concurrent users may overwrite each other's
-pending action bundle. Per-user workflow sessions are out of scope for this
-contract.
+- `tests/test_clawbio_runner_actions.py` for runner-promotion tests.
 
 ## Flow
 

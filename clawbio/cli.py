@@ -1729,7 +1729,7 @@ def run_skill(
     Run a ClawBio skill as a subprocess.
 
     Returns a structured dict with success status, output paths, and logs.
-    Importable by any agent (RoboTerri, RoboIsaac, Claude Code).
+    Importable by any agent host (e.g. Claude Code).
 
     Every run is recorded as a skill_run span in the audit log, so a new skill
     is covered as soon as it is registered.

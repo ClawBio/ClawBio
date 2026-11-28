@@ -115,11 +115,6 @@ bigquery = [
     "google-auth>=2.62.2,<3",
     "google-cloud-bigquery>=3.47.0,<4",
 ]
-# The Robotary web UI (robotary/server.py).
-robotary = [
-    "fastapi>=0.162.4",
-    "uvicorn>=0.54.0",
-]
 
 # PDF rendering in prs-abstain; the skill degrades to markdown-only without them.
 prs-abstain = [
@@ -164,13 +159,6 @@ dev = [
     "pypdf>=7.0.1,<8",
     "inline-snapshot>=0.36.2",
     "pytest-xdist>=3.8.0",
-]
-bot = [
-    "python-telegram-bot[job-queue]>=22.8",
-    "discord.py>=2.3.0",
-    "flask>=3.0.0",
-    "requests>=2.34.2",
-    "python-dotenv>=1.2.4",
 ]
 
 [tool.hatch.version]
